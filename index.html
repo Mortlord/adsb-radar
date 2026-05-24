@@ -830,11 +830,17 @@ async function fetchData() {
   const radius = parseInt(document.getElementById('radius-input').value)||100;
 
   try {
-    const resp = await fetch(
-      `https://api.adsb.lol/v2/lat/${myLat.toFixed(4)}/lon/${myLon.toFixed(4)}/dist/${radius}`,
-      { signal: AbortSignal.timeout(12000) }
-    );
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    // Direkter Aufruf – falls CORS geblockt, Fallback auf corsproxy.io
+    const directUrl = `https://api.adsb.lol/v2/lat/${myLat.toFixed(4)}/lon/${myLon.toFixed(4)}/dist/${radius}`;
+    const proxyUrl  = `https://corsproxy.io/?${encodeURIComponent(directUrl)}`;
+    let resp;
+    try {
+      resp = await fetch(directUrl, { signal: AbortSignal.timeout(8000) });
+      if (!resp.ok) throw new Error('direct ' + resp.status);
+    } catch {
+      resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(12000) });
+    }
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} (proxy)`);
     const data = await resp.json();
     const alertNm = parseInt(document.getElementById('alert-input').value)||15;
     const prevHexes = new Set(knownHexes);

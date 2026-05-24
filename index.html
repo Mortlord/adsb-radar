@@ -388,7 +388,7 @@ body {
 <div id="loc-modal">
   <div id="loc-box">
     <h2>✈ STANDORT FESTLEGEN</h2>
-    <p>Der Browser kann den Standort bei lokalen Dateien nicht automatisch ermitteln. Wähle eine Stadt oder gib Koordinaten manuell ein.</p>
+    <p>GPS nicht verfügbar oder verweigert. Wähle eine Stadt oder gib Koordinaten manuell ein.</p>
 
     <div class="loc-presets">
       <button class="loc-preset" onclick="setPreset(48.1374,11.5755)">
@@ -637,7 +637,7 @@ let knownHexes = new Set();
 let selectedHex = null;
 let routeCache = {};
 let refreshTimer = null;
-const REFRESH_MS = 30000;
+const REFRESH_MS = 60000;
 
 // ══════════════════════════════════════════════
 // LOOKUP HELPERS
@@ -822,13 +822,18 @@ async function fetchRoute(callsign) {
 // ══════════════════════════════════════════════
 async function fetchData() {
   if (!myLat) { await getLocation(); if (!myLat) return; }
+  // GPS-Position im Hintergrund aktualisieren (kein Modal, kein Unterbrechen)
+  refreshGpsQuiet();
   const btn = document.getElementById('refresh-btn');
   btn.disabled = true;
   document.getElementById('spinner').classList.add('visible');
   const radius = parseInt(document.getElementById('radius-input').value)||100;
 
   try {
-    const resp = await fetch(`https://api.adsb.lol/v2/lat/${myLat.toFixed(4)}/lon/${myLon.toFixed(4)}/dist/${radius}`);
+    const resp = await fetch(
+      `https://api.adsb.lol/v2/lat/${myLat.toFixed(4)}/lon/${myLon.toFixed(4)}/dist/${radius}`,
+      { signal: AbortSignal.timeout(12000) }
+    );
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     const alertNm = parseInt(document.getElementById('alert-input').value)||15;
@@ -862,8 +867,11 @@ async function fetchData() {
     if (selectedHex && aircraft[selectedHex]) selectAircraft(selectedHex);
 
   } catch(e) {
-    setApiStatus('red','Fehler: '+e.message);
-    showToast('⚠ API-Fehler: '+e.message, true);
+    const msg = e.name === 'TimeoutError' ? 'Timeout – kein Signal' :
+                e.message.includes('Failed to fetch') || e.message.includes('Load failed')
+                  ? 'Netzwerkfehler – CORS oder offline' : e.message;
+    setApiStatus('red', msg);
+    showToast('⚠ API: ' + msg, true);
   } finally {
     btn.disabled=false;
     document.getElementById('spinner').classList.remove('visible');
@@ -1013,7 +1021,6 @@ let locationResolve = null;
 function setPreset(lat, lon) {
   document.getElementById('inp-lat').value = lat;
   document.getElementById('inp-lon').value = lon;
-  // highlight the inputs briefly
   ['inp-lat','inp-lon'].forEach(id => {
     const el = document.getElementById(id);
     el.style.borderColor = '#4af';
@@ -1044,6 +1051,13 @@ function tryGps() {
   );
 }
 
+function applyLocation(lat, lon) {
+  myLat = lat; myLon = lon;
+  setGpsStatus('green', `${lat.toFixed(3)}, ${lon.toFixed(3)}`);
+  document.getElementById('footer-pos').textContent =
+    `Pos: ${lat.toFixed(4)}°N ${lon.toFixed(4)}°E`;
+}
+
 function confirmLocation() {
   const lat = parseFloat(document.getElementById('inp-lat').value);
   const lon = parseFloat(document.getElementById('inp-lon').value);
@@ -1056,10 +1070,7 @@ function confirmLocation() {
     lonEl.placeholder = 'Bitte gültige Zahl';
     return;
   }
-  myLat = lat; myLon = lon;
-  setGpsStatus('green', `${lat.toFixed(3)}, ${lon.toFixed(3)}`);
-  document.getElementById('footer-pos').textContent =
-    `Pos: ${lat.toFixed(4)}°N ${lon.toFixed(4)}°E`;
+  applyLocation(lat, lon);
   document.getElementById('loc-modal').classList.remove('visible');
   if (locationResolve) { locationResolve(); locationResolve = null; }
 }
@@ -1083,19 +1094,58 @@ document.getElementById('gps-txt').addEventListener('click', () => {
 });
 
 // ══════════════════════════════════════════════
-// INIT — Modal sofort zeigen, dann Radar starten
+// GPS HELPERS
+// ══════════════════════════════════════════════
+
+// Versucht GPS zu ermitteln; zeigt Modal wenn nicht moeglich
+function getLocation() {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) {
+      showLocationModal(resolve);
+      return;
+    }
+    setGpsStatus('yellow', 'Ermittle...');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        applyLocation(pos.coords.latitude, pos.coords.longitude);
+        resolve();
+      },
+      err => {
+        setGpsStatus('red', 'Verweigert');
+        showLocationModal(resolve);
+      },
+      { enableHighAccuracy: false, timeout: 10000 }
+    );
+  });
+}
+
+// Stille GPS-Aktualisierung im Hintergrund (kein Modal)
+function refreshGpsQuiet() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      applyLocation(pos.coords.latitude, pos.coords.longitude);
+    },
+    () => { /* silent fail - alte Position behalten */ },
+    { enableHighAccuracy: false, timeout: 8000 }
+  );
+}
+
+function showLocationModal(resolve) {
+  locationResolve = resolve;
+  document.getElementById('loc-modal').classList.add('visible');
+}
+
+// ══════════════════════════════════════════════
+// INIT - GPS automatisch, kein Startbildschirm
 // ══════════════════════════════════════════════
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 drawRadar();
 
-// Show modal immediately on load
-locationResolve = async () => {
-  drawRadar();
-  await fetchData();
-};
-document.getElementById('loc-modal').classList.add('visible');
+// GPS zuerst versuchen -> direkt Radar starten, kein Modal
+getLocation().then(() => {
+  if (myLat) fetchData();
+});
 </script>
 </body>
-</html>
-                             

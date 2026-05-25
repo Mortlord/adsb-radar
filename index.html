@@ -1089,9 +1089,10 @@ async function fetchData() {
       if (!prevHexes.has(ac.hex)) {
         knownHexes.add(ac.hex);
         const dst = ac.dst ?? (ac.lat!=null ? haversine(myLat,myLon,ac.lat,ac.lon) : 999);
+        // Besuch zählen — beim ersten Load UND bei jedem neuen Erscheinen
+        visitsDB[ac.hex] = (visitsDB[ac.hex] || 0) + 1;
         if (prevHexes.size > 0) {
-          // Besuch zählen (erstes Erscheinen nach Seitenstart)
-          visitsDB[ac.hex] = (visitsDB[ac.hex] || 0) + 1;
+          // Toast nur bei echtem Neuzugang (nicht beim initialen Load)
           const call = (ac.flight||ac.hex||'').trim();
           const airline = getAirline(ac.flight);
           if (dst <= alertNm) {

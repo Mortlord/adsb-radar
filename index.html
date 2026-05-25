@@ -986,6 +986,13 @@ async function fetchRoute(callsign) {
     if (!r.ok) return null;
     const d = await r.json();
     const fr = d?.response?.flightroute;
+    // Airline-Name aus der Antwort extrahieren und cachen (kostenlos mitgeliefert)
+    if (fr?.airline?.name) {
+      const prefix = cs.slice(0, 3).toUpperCase();
+      if (!Object.prototype.hasOwnProperty.call(operatorCache, prefix)) {
+        operatorCache[prefix] = fr.airline.name;
+      }
+    }
     if (!fr?.origin?.iata_code || !fr?.destination?.iata_code) return null;
     const route = {
       orig: { iata: fr.origin.iata_code,      icao: fr.origin.icao_code,      city: fr.origin.municipality      || fr.origin.name },
@@ -1108,9 +1115,8 @@ async function fetchData() {
 
     if (selectedHex && aircraft[selectedHex]) selectAircraft(selectedHex);
 
-    // Routen + Airline-Namen im Hintergrund nachladen
+    // Routen nachladen (Airline-Name kommt dabei automatisch mit)
     fetchAllRoutes();
-    fetchAllOperators();
 
   } catch(e) {
     const msg = e.name === 'TimeoutError' ? 'Timeout' :

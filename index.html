@@ -77,7 +77,7 @@ body {
   font-size: 0.65rem;
   color: #4af;
   display: grid;
-  grid-template-columns: 85px 110px 75px 60px 55px 55px;
+  grid-template-columns: 82px 105px 62px 82px 58px 52px 52px;
   gap: 4px;
   letter-spacing: .8px;
 }
@@ -91,7 +91,7 @@ body {
   font-size: 0.7rem;
   border-bottom: 1px solid #0f1830;
   display: grid;
-  grid-template-columns: 85px 110px 75px 60px 55px 55px;
+  grid-template-columns: 82px 105px 62px 82px 58px 52px 52px;
   gap: 4px;
   cursor: pointer;
   transition: background .1s;
@@ -363,10 +363,10 @@ body {
     flex-direction: column;
   }
 
-  /* Auf Mobil: nur CALLSIGN, AIRCRAFT, ALT, DIST, SPD (keine AIRLINE) */
+  /* Auf Mobil: CALLSIGN, ROUTE, ALT, DIST, SPD (keine AIRLINE, kein AIRCRAFT) */
   #list-header,
   .ac-row {
-    grid-template-columns: 76px 52px 52px 46px 44px;
+    grid-template-columns: 76px 66px 50px 44px 42px;
     font-size: 0.62rem;
     gap: 3px;
   }
@@ -377,8 +377,8 @@ body {
     padding: 7px 8px;
     min-height: 34px;
   }
-  /* AIRLINE-Spalte ausblenden */
-  .col-airline { display: none !important; }
+  /* AIRLINE + AIRCRAFT ausblenden, ROUTE bleibt */
+  .col-airline, .col-type { display: none !important; }
 
   /* ── Detail-Panel: Bottom Sheet ──────────── */
   #detail-panel {
@@ -437,7 +437,7 @@ body {
   #controls input[type=number] { width: 38px; }
   #list-header,
   .ac-row {
-    grid-template-columns: 68px 48px 48px 42px 40px;
+    grid-template-columns: 68px 58px 46px 40px 38px;
   }
 }
 </style>
@@ -466,6 +466,7 @@ body {
       <span>CALLSIGN</span>
       <span class="col-airline">AIRLINE</span>
       <span class="col-type">AIRCRAFT</span>
+      <span>ROUTE</span>
       <span>ALT</span>
       <span>DIST nm</span>
       <span>SPD kt</span>
@@ -526,7 +527,7 @@ body {
 
 <div id="toast-container"></div>
 <div id="footer">
-  <span>Daten: api.adsb.lol · Routen: OpenSky · github.io · api.adsb.lol</span>
+  <span>Daten: api.adsb.lol · Routen: adsbdb.com · github.io/adsb-radar</span>
   <span id="footer-pos">Pos: –</span>
 </div>
 <div id="spinner">⟳ Lade…</div>
@@ -948,19 +949,27 @@ function bearingTo(lat1,lon1,lat2,lon2) {
 }
 
 // ══════════════════════════════════════════════
-// FETCH ROUTE (OpenSky)
+// FETCH ROUTE (adsbdb.com – kostenlos, CORS OK)
+// Normalisiertes Format: { orig:{iata,icao,city}, dest:{iata,icao,city} }
 // ══════════════════════════════════════════════
 async function fetchRoute(callsign) {
   if (!callsign) return null;
   const cs = callsign.trim();
   if (routeCache[cs] !== undefined) return routeCache[cs];
-  routeCache[cs] = null;
+  routeCache[cs] = null; // Platzhalter gegen Doppel-Anfragen
   try {
-    const r = await fetch(`https://opensky-network.org/api/routes?callsign=${cs}`, {signal: AbortSignal.timeout(5000)});
+    const r = await fetch(`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(cs)}`,
+                          {signal: AbortSignal.timeout(6000)});
     if (!r.ok) return null;
     const d = await r.json();
-    routeCache[cs] = d;
-    return d;
+    const fr = d?.response?.flightroute;
+    if (!fr?.origin?.iata_code || !fr?.destination?.iata_code) return null;
+    const route = {
+      orig: { iata: fr.origin.iata_code,      icao: fr.origin.icao_code,      city: fr.origin.municipality      || fr.origin.name },
+      dest: { iata: fr.destination.iata_code, icao: fr.destination.icao_code, city: fr.destination.municipality || fr.destination.name },
+    };
+    routeCache[cs] = route;
+    return route;
   } catch { return null; }
 }
 
@@ -1062,10 +1071,13 @@ function renderList() {
       routeStr = `${o} → ${d}`;
     }
 
+    const rt = routeCache[call];
+    const routeStr = rt ? `${rt.orig.iata}›${rt.dest.iata}` : '–';
     row.innerHTML = `
       <span class="col-call">${call}</span>
       <span class="col-airline">${airline||'–'}</span>
       <span class="col-type">${ac.t||'–'}</span>
+      <span class="col-route">${routeStr}</span>
       <span class="col-alt ${altClass(ac.alt_baro)}">${fmtAlt(ac.alt_baro)}</span>
       <span class="col-dist">${ac._dst<9999?ac._dst.toFixed(1):'–'}</span>
       <span class="col-spd">${ac.gs?Math.round(ac.gs):'–'}</span>
@@ -1125,17 +1137,13 @@ async function selectAircraft(hex) {
   document.getElementById('dp-dist-label').textContent = '–';
 
   const route = await fetchRoute(call);
-  if (route?.route?.length>=2) {
-    const origICAO = route.route[0];
-    const destICAO = route.route[route.route.length-1];
-    const origIATA = origICAO.slice(-3);
-    const destIATA = destICAO.slice(-3);
-    document.getElementById('dp-orig-iata').textContent = origIATA;
-    document.getElementById('dp-dest-iata').textContent = destIATA;
-    document.getElementById('dp-orig-city').textContent = getCity(origICAO);
-    document.getElementById('dp-dest-city').textContent = getCity(destICAO);
+  if (route) {
+    document.getElementById('dp-orig-iata').textContent = route.orig.iata;
+    document.getElementById('dp-dest-iata').textContent = route.dest.iata;
+    document.getElementById('dp-orig-city').textContent = route.orig.city;
+    document.getElementById('dp-dest-city').textContent = route.dest.city;
     document.getElementById('dp-dist-label').textContent = `${ac._dst<9999?ac._dst.toFixed(0):'?'} nm`;
-    renderList(); // update route column
+    renderList(); // Route-Spalte aktualisieren
   } else {
     document.getElementById('dp-orig-iata').textContent = '–';
     document.getElementById('dp-dest-iata').textContent = '–';

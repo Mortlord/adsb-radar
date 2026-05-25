@@ -804,6 +804,16 @@ let isFetching = false;
 // Besuchszähler: wie oft ein Flugzeug (per Hex) in den Radius gekommen ist
 let visitsDB = {};
 try { visitsDB = JSON.parse(localStorage.getItem('ac_visits') || '{}'); } catch {}
+
+// Letzter bekannter Radius-Inhalt – verhindert Doppelzählung bei Seiten-Reload
+// Gilt nur wenn der letzte Fetch weniger als 10 Minuten zurückliegt
+let lastRadiusHexes = new Set();
+try {
+  const saved = JSON.parse(localStorage.getItem('ac_radius_state') || 'null');
+  if (saved && Date.now() - saved.ts < 10 * 60 * 1000) {
+    lastRadiusHexes = new Set(saved.hexes);
+  }
+} catch {}
 const REFRESH_MS = 60000;
 
 // ══════════════════════════════════════════════
@@ -1086,9 +1096,10 @@ async function fetchData() {
 
     (data.ac||[]).forEach(ac => {
       fresh[ac.hex] = ac;
-      const justEntered = !aircraft[ac.hex]; // war im letzten Fetch NICHT im Radius
+      // Besuch zählen: Flugzeug war weder im letzten Fetch noch beim letzten bekannten
+      // Radius-Zustand (aus localStorage, max. 10 Min. alt) im Radius
+      const justEntered = !aircraft[ac.hex] && !lastRadiusHexes.has(ac.hex);
       if (justEntered) {
-        // Besuch zählen: Flugzeug tritt neu in den Radius ein
         visitsDB[ac.hex] = (visitsDB[ac.hex] || 0) + 1;
       }
       if (!prevHexes.has(ac.hex)) {
@@ -1106,8 +1117,12 @@ async function fetchData() {
         }
       }
     });
-    // Besuche persistieren
+    // Besuche + aktuellen Radius-Inhalt persistieren
     try { localStorage.setItem('ac_visits', JSON.stringify(visitsDB)); } catch {}
+    try { localStorage.setItem('ac_radius_state', JSON.stringify({ts: Date.now(), hexes: Object.keys(fresh)})); } catch {}
+
+    // lastRadiusHexes nur beim ersten Fetch gebraucht – danach übernimmt aircraft[]
+    lastRadiusHexes = new Set();
 
     aircraft = fresh;
     renderList();

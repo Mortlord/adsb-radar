@@ -797,6 +797,7 @@ let selectedHex = null;
 let routeCache = {};
 let operatorCache = {};
 let isFetching = false;
+let myTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone; // Fallback: Gerätezeitzone
 
 const REFRESH_MS = 60000;
 
@@ -1188,5 +1189,209 @@ async function selectAircraft(hex) {
     ${ac._dst<=alertNm?'<span class="badge badge-alert">⚠ ALERT ZONE</span>':''}
   `;
 
-  // Flight data
-  document.getElem
+  // Flugzeugdaten
+  document.getElementById('dp-type').textContent    = typeFull || '–';
+  document.getElementById('dp-reg').textContent     = ac.r    || '–';
+  document.getElementById('dp-hex').textContent     = ac.hex  || '–';
+  document.getElementById('dp-squawk').textContent  = ac.squawk || '–';
+  document.getElementById('dp-alt').textContent     = fmtAltFull(ac.alt_baro);
+  document.getElementById('dp-spd').textContent     = ac.gs   ? Math.round(ac.gs)   + ' kt'       : '–';
+  document.getElementById('dp-hdg').textContent     = ac.track? Math.round(ac.track) + '°'         : '–';
+  const vr = ac.baro_rate;
+  document.getElementById('dp-vrate').textContent   = vr!=null? (vr>0?'+':'')+vr.toLocaleString('de-DE')+' ft/min' : '–';
+  document.getElementById('dp-dist').textContent    = ac._dst<9999 ? ac._dst.toFixed(1)+' nm'     : '–';
+  document.getElementById('dp-rssi').textContent    = ac.rssi!=null? ac.rssi+' dBFS'               : '–';
+
+  panel.classList.add('visible');
+
+  // Route anzeigen
+  function applyRoute(rt) {
+    if (!rt) return;
+    document.getElementById('dp-orig-iata').textContent = rt.orig.iata;
+    document.getElementById('dp-orig-city').textContent = rt.orig.city || rt.orig.icao || '–';
+    document.getElementById('dp-dest-iata').textContent = rt.dest.iata;
+    document.getElementById('dp-dest-city').textContent = rt.dest.city || rt.dest.icao || '–';
+    document.getElementById('dp-dist-label').textContent = '';
+    document.getElementById('dp-route-section').style.display = 'block';
+  }
+
+  const rt = routeCache[call];
+  if (rt) {
+    applyRoute(rt);
+  } else {
+    document.getElementById('dp-orig-iata').textContent = '–';
+    document.getElementById('dp-orig-city').textContent = '';
+    document.getElementById('dp-dest-iata').textContent = '–';
+    document.getElementById('dp-dest-city').textContent = '';
+    document.getElementById('dp-route-section').style.display = 'none';
+    const fetched = await fetchRoute(call);
+    if (fetched && selectedHex === hex) {
+      applyRoute(fetched);
+      renderList();
+    }
+  }
+}
+
+function closeDetail() {
+  selectedHex = null;
+  document.getElementById('detail-panel').classList.remove('visible');
+  renderList(); drawRadar();
+}
+
+// ══════════════════════════════════════════════
+// TOAST NOTIFICATIONS
+// ══════════════════════════════════════════════
+function showToast(msg, isAlert=false) {
+  const container = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = 'toast' + (isAlert ? ' alert' : '');
+  t.textContent = msg;
+  container.appendChild(t);
+  setTimeout(() => t.remove(), 5100);
+}
+
+// ══════════════════════════════════════════════
+// STATUS-ANZEIGE
+// ══════════════════════════════════════════════
+function setApiStatus(color, text) {
+  const dot = document.getElementById('api-dot');
+  const txt = document.getElementById('api-txt');
+  dot.className = 'dot ' + color;
+  txt.textContent = 'API: ' + text;
+}
+
+function setGpsStatus(color, text) {
+  const dot = document.getElementById('gps-dot');
+  const txt = document.getElementById('gps-txt');
+  dot.className = 'dot ' + color;
+  txt.textContent = 'GPS: ' + text;
+}
+
+// ══════════════════════════════════════════════
+// GPS-TIMEZONE (lokale Uhrzeit am Standort)
+// ══════════════════════════════════════════════
+async function fetchTimezone(lat, lon) {
+  try {
+    const r = await fetch(
+      `https://timezonefinder.michelfe.it/api/0?lat=${lat}&lng=${lon}`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    const d = await r.json();
+    if (d?.timezone_id) {
+      myTimezone = d.timezone_id;
+      // Radius sofort mit richtiger Ortszeit neu setzen
+      autoSetRadius();
+    }
+  } catch { /* Gerätezeitzone bleibt als Fallback */ }
+}
+
+// ══════════════════════════════════════════════
+// RADIUS NACH ORTSZEIT (GPS-Standort)
+// ══════════════════════════════════════════════
+function autoSetRadius() {
+  let h;
+  try {
+    h = parseInt(new Intl.DateTimeFormat('en-US', {
+      timeZone: myTimezone,
+      hour: 'numeric',
+      hour12: false
+    }).format(new Date()));
+  } catch {
+    h = new Date().getHours();
+  }
+  const target = (h >= 20 || h < 6) ? 50 : 25;
+  const input = document.getElementById('radius-input');
+  if (input && parseInt(input.value) !== target) input.value = target;
+}
+
+// ══════════════════════════════════════════════
+// STANDORTERMITTLUNG
+// ══════════════════════════════════════════════
+async function getLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      document.getElementById('loc-modal').classList.add('visible');
+      resolve(); return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        myLat = pos.coords.latitude;
+        myLon = pos.coords.longitude;
+        document.getElementById('footer-pos').textContent =
+          `Pos: ${myLat.toFixed(4)}, ${myLon.toFixed(4)}`;
+        setGpsStatus('green', `${myLat.toFixed(2)}, ${myLon.toFixed(2)}`);
+        document.getElementById('loc-modal').classList.remove('visible');
+        fetchTimezone(myLat, myLon);
+        resolve();
+      },
+      () => {
+        setGpsStatus('yellow', 'Manuell');
+        document.getElementById('loc-modal').classList.add('visible');
+        resolve();
+      },
+      { timeout: 10000, maximumAge: 60000 }
+    );
+  });
+}
+
+async function tryGps() {
+  const btn = document.getElementById('loc-gps-btn');
+  btn.textContent = '📍 Ermittle Standort…';
+  btn.disabled = true;
+  await getLocation();
+  btn.textContent = '📍 Meinen Standort automatisch ermitteln';
+  btn.disabled = false;
+  if (myLat) fetchData();
+}
+
+function setPreset(lat, lon) {
+  myLat = lat; myLon = lon;
+  document.getElementById('inp-lat').value = lat;
+  document.getElementById('inp-lon').value = lon;
+}
+
+function confirmLocation() {
+  const lat = parseFloat(document.getElementById('inp-lat').value);
+  const lon = parseFloat(document.getElementById('inp-lon').value);
+  if (isNaN(lat)||isNaN(lon)) { alert('Bitte gültige Koordinaten eingeben.'); return; }
+  myLat = lat; myLon = lon;
+  document.getElementById('footer-pos').textContent =
+    `Pos: ${myLat.toFixed(4)}, ${myLon.toFixed(4)}`;
+  setGpsStatus('yellow', 'Manuell');
+  document.getElementById('loc-modal').classList.remove('visible');
+  fetchTimezone(myLat, myLon);
+  fetchData();
+}
+
+async function refreshGpsQuiet() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      myLat = pos.coords.latitude;
+      myLon = pos.coords.longitude;
+      document.getElementById('footer-pos').textContent =
+        `Pos: ${myLat.toFixed(4)}, ${myLon.toFixed(4)}`;
+      setGpsStatus('green', `${myLat.toFixed(2)}, ${myLon.toFixed(2)}`);
+    },
+    () => {},
+    { timeout: 8000, maximumAge: 120000 }
+  );
+}
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+autoSetRadius();
+setInterval(autoSetRadius, 60 * 1000);
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+drawRadar();
+getLocation().then(() => { if (myLat) fetchData(); });
+setInterval(() => { if (myLat) fetchData(); }, REFRESH_MS);
+setInterval(refreshGpsQuiet, 5 * 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && myLat) fetchData();
+});
+</script>
+</body>
+</html>

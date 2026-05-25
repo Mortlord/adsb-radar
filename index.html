@@ -974,6 +974,24 @@ async function fetchRoute(callsign) {
 }
 
 // ══════════════════════════════════════════════
+// HINTERGRUND-ROUTENLADEN für alle Flugzeuge
+// Lädt je 4 Callsigns parallel, aktualisiert
+// die Liste sobald Ergebnisse eintreffen.
+// ══════════════════════════════════════════════
+async function fetchAllRoutes() {
+  const calls = Object.values(aircraft)
+    .map(ac => (ac.flight||'').trim())
+    .filter(cs => cs.length >= 3 && !Object.prototype.hasOwnProperty.call(routeCache, cs));
+
+  const BATCH = 4;
+  for (let i = 0; i < calls.length; i += BATCH) {
+    const batch = calls.slice(i, i + BATCH);
+    await Promise.all(batch.map(cs => fetchRoute(cs)));
+    renderList(); // Liste nach jedem Batch aktualisieren
+  }
+}
+
+// ══════════════════════════════════════════════
 // MAIN FETCH
 // ══════════════════════════════════════════════
 async function fetchData() {
@@ -1027,6 +1045,9 @@ async function fetchData() {
     document.getElementById('count-txt').textContent = `${Object.keys(aircraft).length} Flugzeuge`;
 
     if (selectedHex && aircraft[selectedHex]) selectAircraft(selectedHex);
+
+    // Routen im Hintergrund für alle Flugzeuge nachladen (je 4 parallel)
+    fetchAllRoutes();
 
   } catch(e) {
     const msg = e.name === 'TimeoutError' ? 'Timeout – kein Signal' :

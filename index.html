@@ -585,6 +585,17 @@ body {
 
 <script>
 // ══════════════════════════════════════════════
+// POLYFILLS – Kompatibilität älterer mobiler Browser
+// ══════════════════════════════════════════════
+if (typeof AbortSignal.timeout !== 'function') {
+  AbortSignal.timeout = function(ms) {
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(new DOMException('TimeoutError', 'TimeoutError')), ms);
+    return ctrl.signal;
+  };
+}
+
+// ══════════════════════════════════════════════
 // LOOKUP TABLES
 // ══════════════════════════════════════════════
 
@@ -996,8 +1007,6 @@ async function fetchAllRoutes() {
 // ══════════════════════════════════════════════
 async function fetchData() {
   if (!myLat) { await getLocation(); if (!myLat) return; }
-  // GPS-Position im Hintergrund aktualisieren (kein Modal, kein Unterbrechen)
-  refreshGpsQuiet();
   const btn = document.getElementById('refresh-btn');
   btn.disabled = true;
   document.getElementById('spinner').classList.add('visible');
@@ -1009,10 +1018,10 @@ async function fetchData() {
     const proxyUrl  = `https://corsproxy.io/?${encodeURIComponent(directUrl)}`;
     let resp;
     try {
-      resp = await fetch(directUrl, { signal: AbortSignal.timeout(8000) });
+      resp = await fetch(directUrl, { signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error('direct ' + resp.status);
     } catch {
-      resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(12000) });
+      resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
     }
     if (!resp.ok) throw new Error(`HTTP ${resp.status} (proxy)`);
     const data = await resp.json();
@@ -1050,11 +1059,11 @@ async function fetchData() {
     fetchAllRoutes();
 
   } catch(e) {
-    const msg = e.name === 'TimeoutError' ? 'Timeout – kein Signal' :
-                e.message.includes('Failed to fetch') || e.message.includes('Load failed')
-                  ? 'Netzwerkfehler – CORS oder offline' : e.message;
-    setApiStatus('red', msg);
-    showToast('⚠ API: ' + msg, true);
+    const msg = e.name === 'TimeoutError' ? 'Timeout' :
+                (e.message.includes('Failed to fetch') || e.message.includes('Load failed') || e.message.includes('NetworkError'))
+                  ? 'Kein Netz / CORS' : e.message.slice(0, 30);
+    setApiStatus('red', '⚠ ' + msg);
+    document.getElementById('last-update').textContent = 'Fehler: ' + msg;
   } finally {
     btn.disabled=false;
     document.getElementById('spinner').classList.remove('visible');
@@ -1320,5 +1329,8 @@ drawRadar();
 getLocation().then(() => {
   if (myLat) fetchData();
 });
+
+// GPS separat alle 5 Minuten still aktualisieren (nicht beim Datenabruf)
+setInterval(refreshGpsQuiet, 5 * 60 * 1000);
 </script>
 </body>

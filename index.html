@@ -795,7 +795,7 @@ let aircraft = {};
 let knownHexes = new Set();
 let selectedHex = null;
 let routeCache = {};
-let refreshTimer = null;
+let isFetching = false;
 const REFRESH_MS = 60000;
 
 // ══════════════════════════════════════════════
@@ -1006,7 +1006,9 @@ async function fetchAllRoutes() {
 // MAIN FETCH
 // ══════════════════════════════════════════════
 async function fetchData() {
+  if (isFetching) return;          // Parallele Aufrufe verhindern
   if (!myLat) { await getLocation(); if (!myLat) return; }
+  isFetching = true;
   const btn = document.getElementById('refresh-btn');
   btn.disabled = true;
   document.getElementById('spinner').classList.add('visible');
@@ -1066,11 +1068,10 @@ async function fetchData() {
     setApiStatus('red', '⚠ ' + msg);
     document.getElementById('last-update').textContent = 'Fehler: ' + msg;
   } finally {
-    btn.disabled=false;
+    isFetching = false;
+    btn.disabled = false;
     document.getElementById('spinner').classList.remove('visible');
   }
-  clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(fetchData, REFRESH_MS);
 }
 
 // ══════════════════════════════════════════════
@@ -1331,22 +1332,20 @@ getLocation().then(() => {
   if (myLat) fetchData();
 });
 
-// GPS separat alle 5 Minuten still aktualisieren (nicht beim Datenabruf)
+// ── Auto-Refresh: setInterval statt setTimeout-Kette ─────
+// setInterval ist robuster – bricht nicht wenn zwei Aufrufe
+// gleichzeitig kommen. isFetching-Guard verhindert Überlappung.
+setInterval(() => { if (myLat) fetchData(); }, REFRESH_MS);
+
+// ── GPS alle 5 Minuten still aktualisieren ────────────────
 setInterval(refreshGpsQuiet, 5 * 60 * 1000);
 
-// ── Page Visibility API ───────────────────────
-// Wenn App aus dem Hintergrund zurückkommt (Displaysperre,
-// Tab-Wechsel etc.) sofort neu laden – Timer laufen auf
-// mobilen Geräten im Hintergrund nicht weiter.
-let lastFetchTime = 0;
+// ── Page Visibility API ───────────────────────────────────
+// Sofort neu laden wenn App aus Hintergrund zurückkommt.
+// (Mobile Browser pausieren Timers im Hintergrund.)
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && myLat) {
-    const secondsSinceFetch = (Date.now() - lastFetchTime) / 1000;
-    // Nur neu laden wenn letzter Fetch > 30 Sekunden her
-    if (secondsSinceFetch > 30) {
-      clearTimeout(refreshTimer);
-      fetchData();
-    }
+    fetchData();
   }
 });
 </script>

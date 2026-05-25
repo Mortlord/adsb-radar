@@ -1086,13 +1086,16 @@ async function fetchData() {
 
     (data.ac||[]).forEach(ac => {
       fresh[ac.hex] = ac;
+      const justEntered = !aircraft[ac.hex]; // war im letzten Fetch NICHT im Radius
+      if (justEntered) {
+        // Besuch zählen: Flugzeug tritt neu in den Radius ein
+        visitsDB[ac.hex] = (visitsDB[ac.hex] || 0) + 1;
+      }
       if (!prevHexes.has(ac.hex)) {
         knownHexes.add(ac.hex);
-        const dst = ac.dst ?? (ac.lat!=null ? haversine(myLat,myLon,ac.lat,ac.lon) : 999);
-        // Besuch zählen — beim ersten Load UND bei jedem neuen Erscheinen
-        visitsDB[ac.hex] = (visitsDB[ac.hex] || 0) + 1;
         if (prevHexes.size > 0) {
           // Toast nur bei echtem Neuzugang (nicht beim initialen Load)
+          const dst = ac.dst ?? (ac.lat!=null ? haversine(myLat,myLon,ac.lat,ac.lon) : 999);
           const call = (ac.flight||ac.hex||'').trim();
           const airline = getAirline(ac.flight);
           if (dst <= alertNm) {

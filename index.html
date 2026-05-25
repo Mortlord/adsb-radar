@@ -1063,14 +1063,6 @@ function renderList() {
     const call = (ac.flight||'').trim()||ac.hex;
     const airline = getAirline(ac.flight||'');
     const typeName = ac.t ? (AIRCRAFT_TYPES[ac.t.toUpperCase()]||ac.t) : '–';
-    const route = routeCache[call];
-    let routeStr = '–';
-    if (route?.route?.length>=2) {
-      const o = route.route[0].slice(-3);
-      const d = route.route[route.route.length-1].slice(-3);
-      routeStr = `${o} → ${d}`;
-    }
-
     const rt = routeCache[call];
     const routeStr = rt ? `${rt.orig.iata}›${rt.dest.iata}` : '–';
     row.innerHTML = `

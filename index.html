@@ -527,7 +527,7 @@ body {
 
 <div id="toast-container"></div>
 <div id="footer">
-  <span>Daten: api.adsb.lol · Routen: adsbdb.com · github.io/adsb-radar</span>
+  <span>Daten: airplanes.live · Routen: adsbdb.com · github.io/adsb-radar</span>
   <span id="footer-pos">Pos: –</span>
 </div>
 <div id="spinner">⟳ Lade…</div>
@@ -1015,11 +1015,10 @@ async function fetchData() {
   const radius = parseInt(document.getElementById('radius-input').value)||25;
 
   try {
-    // Direkter Aufruf – falls CORS geblockt, Fallback auf corsproxy.io
-    // Cache-Buster im Target-URL verhindert serverseitiges Caching beim Proxy
-    const directUrl = `https://api.adsb.lol/v2/lat/${myLat.toFixed(4)}/lon/${myLon.toFixed(4)}/dist/${radius}`;
-    const bustUrl   = directUrl + `?_=${Date.now()}`;
-    const proxyUrl  = `https://corsproxy.io/?${encodeURIComponent(bustUrl)}`;
+    // airplanes.live hat native CORS-Unterstützung → kein Proxy nötig, kein Caching-Problem
+    // Fallback auf corsproxy.io falls direkt blockiert
+    const directUrl = `https://api.airplanes.live/v2/point/${myLat.toFixed(4)}/${myLon.toFixed(4)}/${radius}`;
+    const proxyUrl  = `https://corsproxy.io/?${encodeURIComponent(directUrl)}`;
     let resp;
     try {
       resp = await fetch(directUrl, { signal: AbortSignal.timeout(10000) });

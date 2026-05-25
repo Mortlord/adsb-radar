@@ -1014,16 +1014,14 @@ async function fetchData() {
 
   try {
     // Direkter Aufruf – falls CORS geblockt, Fallback auf corsproxy.io
-    // cache: 'no-store' verhindert dass mobile Browser gecachte Antworten liefern
     const directUrl = `https://api.adsb.lol/v2/lat/${myLat.toFixed(4)}/lon/${myLon.toFixed(4)}/dist/${radius}`;
     const proxyUrl  = `https://corsproxy.io/?${encodeURIComponent(directUrl)}`;
-    const fetchOpts = { cache: 'no-store' };
     let resp;
     try {
-      resp = await fetch(directUrl, { ...fetchOpts, signal: AbortSignal.timeout(10000) });
+      resp = await fetch(directUrl, { signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error('direct ' + resp.status);
     } catch {
-      resp = await fetch(proxyUrl, { ...fetchOpts, signal: AbortSignal.timeout(15000) });
+      resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
     }
     if (!resp.ok) throw new Error(`HTTP ${resp.status} (proxy)`);
     const data = await resp.json();

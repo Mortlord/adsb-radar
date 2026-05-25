@@ -77,7 +77,7 @@ body {
   font-size: 0.65rem;
   color: #4af;
   display: grid;
-  grid-template-columns: 82px 105px 62px 82px 58px 52px 52px 34px;
+  grid-template-columns: 82px 105px 62px 82px 58px 52px 52px;
   gap: 4px;
   letter-spacing: .8px;
 }
@@ -91,7 +91,7 @@ body {
   font-size: 0.7rem;
   border-bottom: 1px solid #0f1830;
   display: grid;
-  grid-template-columns: 82px 105px 62px 82px 58px 52px 52px 34px;
+  grid-template-columns: 82px 105px 62px 82px 58px 52px 52px;
   gap: 4px;
   cursor: pointer;
   transition: background .1s;
@@ -110,8 +110,6 @@ body {
 .col-alt  { }
 .col-dist { color: #fa3; }
 .col-spd  { color: #8cf; }
-.col-cnt  { color: #8cf; font-size: 0.7rem; text-align: right; }
-.col-cnt.seen { color: #4df; font-weight: bold; }
 
 .alt-hi  { color: #f66; }
 .alt-mid { color: #ff9; }
@@ -368,7 +366,7 @@ body {
   /* Auf Mobil: CALLSIGN, ROUTE, ALT, DIST, SPD, # (keine AIRLINE, kein AIRCRAFT) */
   #list-header,
   .ac-row {
-    grid-template-columns: 76px 66px 50px 44px 40px 26px;
+    grid-template-columns: 76px 66px 50px 44px 42px;
     font-size: 0.62rem;
     gap: 3px;
   }
@@ -439,7 +437,7 @@ body {
   #controls input[type=number] { width: 38px; }
   #list-header,
   .ac-row {
-    grid-template-columns: 68px 58px 46px 40px 36px 24px;
+    grid-template-columns: 68px 58px 46px 40px 38px;
   }
 }
 </style>
@@ -472,7 +470,6 @@ body {
       <span>ALT</span>
       <span>DIST nm</span>
       <span>SPD kt</span>
-      <span class="col-cnt">#</span>
     </div>
     <div id="list-scroll"></div>
   </div>
@@ -801,19 +798,6 @@ let routeCache = {};
 let operatorCache = {};
 let isFetching = false;
 
-// Besuchszähler: wie oft ein Flugzeug (per Hex) in den Radius gekommen ist
-let visitsDB = {};
-try { visitsDB = JSON.parse(localStorage.getItem('ac_visits') || '{}'); } catch {}
-
-// Letzter bekannter Radius-Inhalt – verhindert Doppelzählung bei Seiten-Reload
-// Gilt nur wenn der letzte Fetch weniger als 10 Minuten zurückliegt
-let lastRadiusHexes = new Set();
-try {
-  const saved = JSON.parse(localStorage.getItem('ac_radius_state') || 'null');
-  if (saved && Date.now() - saved.ts < 10 * 60 * 1000) {
-    lastRadiusHexes = new Set(saved.hexes);
-  }
-} catch {}
 const REFRESH_MS = 60000;
 
 // ══════════════════════════════════════════════
@@ -1098,10 +1082,6 @@ async function fetchData() {
       fresh[ac.hex] = ac;
       // Besuch zählen: Flugzeug war weder im letzten Fetch noch beim letzten bekannten
       // Radius-Zustand (aus localStorage, max. 10 Min. alt) im Radius
-      const justEntered = !aircraft[ac.hex] && !lastRadiusHexes.has(ac.hex);
-      if (justEntered) {
-        visitsDB[ac.hex] = (visitsDB[ac.hex] || 0) + 1;
-      }
       if (!prevHexes.has(ac.hex)) {
         knownHexes.add(ac.hex);
         if (prevHexes.size > 0) {
@@ -1118,12 +1098,6 @@ async function fetchData() {
       }
     });
     // Besuche + aktuellen Radius-Inhalt persistieren
-    try { localStorage.setItem('ac_visits', JSON.stringify(visitsDB)); } catch {}
-    try { localStorage.setItem('ac_radius_state', JSON.stringify({ts: Date.now(), hexes: Object.keys(fresh)})); } catch {}
-
-    // lastRadiusHexes nur beim ersten Fetch gebraucht – danach übernimmt aircraft[]
-    lastRadiusHexes = new Set();
-
     aircraft = fresh;
     renderList();
     drawRadar();
@@ -1173,9 +1147,6 @@ function renderList() {
     const typeName = ac.t ? (AIRCRAFT_TYPES[ac.t.toUpperCase()]||ac.t) : '–';
     const rt = routeCache[call];
     const routeStr = rt ? `${rt.orig.iata}›${rt.dest.iata}` : '–';
-    const visits = visitsDB[ac.hex] || 0;
-    const cntClass = visits > 1 ? 'col-cnt seen' : 'col-cnt';
-    const cntStr = visits > 0 ? visits : '–';
     row.innerHTML = `
       <span class="col-call">${call}</span>
       <span class="col-airline">${airline||'–'}</span>
@@ -1184,7 +1155,6 @@ function renderList() {
       <span class="col-alt ${altClass(ac.alt_baro)}">${fmtAlt(ac.alt_baro)}</span>
       <span class="col-dist">${ac._dst<9999?ac._dst.toFixed(1):'–'}</span>
       <span class="col-spd">${ac.gs?Math.round(ac.gs):'–'}</span>
-      <span class="${cntClass}" title="${visits}× in Radius gesehen">${cntStr}</span>
     `;
     row.addEventListener('click', () => selectAircraft(ac.hex));
     scroll.appendChild(row);
@@ -1213,11 +1183,9 @@ async function selectAircraft(hex) {
   // Badges
   const badges = document.getElementById('dp-badges');
   const alertNm = parseInt(document.getElementById('alert-input').value)||15;
-  const hexVisits = visitsDB[ac.hex] || 0;
   badges.innerHTML = `
     ${ac.t?`<span class="badge badge-type">${ac.t}</span>`:''}
     ${ac._dst<=alertNm?'<span class="badge badge-alert">⚠ ALERT ZONE</span>':''}
-    ${hexVisits>0?`<span class="badge" style="background:#1a3060;color:#8af" title="Dieses Flugzeug wurde ${hexVisits}× in deinem Radius gesehen">${hexVisits}× gesehen</span>`:''}
   `;
 
   // Flight data

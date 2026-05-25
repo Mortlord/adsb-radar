@@ -1015,9 +1015,8 @@ async function fetchData() {
   try {
     // Direkter Aufruf – falls CORS geblockt, Fallback auf corsproxy.io
     // cache: 'no-store' verhindert dass mobile Browser gecachte Antworten liefern
-    const ts = Date.now();
     const directUrl = `https://api.adsb.lol/v2/lat/${myLat.toFixed(4)}/lon/${myLon.toFixed(4)}/dist/${radius}`;
-    const proxyUrl  = `https://corsproxy.io/?${encodeURIComponent(directUrl)}&_=${ts}`;
+    const proxyUrl  = `https://corsproxy.io/?${encodeURIComponent(directUrl)}`;
     const fetchOpts = { cache: 'no-store' };
     let resp;
     try {

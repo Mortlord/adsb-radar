@@ -1016,8 +1016,10 @@ async function fetchData() {
 
   try {
     // Direkter Aufruf – falls CORS geblockt, Fallback auf corsproxy.io
+    // Cache-Buster im Target-URL verhindert serverseitiges Caching beim Proxy
     const directUrl = `https://api.adsb.lol/v2/lat/${myLat.toFixed(4)}/lon/${myLon.toFixed(4)}/dist/${radius}`;
-    const proxyUrl  = `https://corsproxy.io/?${encodeURIComponent(directUrl)}`;
+    const bustUrl   = directUrl + `?_=${Date.now()}`;
+    const proxyUrl  = `https://corsproxy.io/?${encodeURIComponent(bustUrl)}`;
     let resp;
     try {
       resp = await fetch(directUrl, { signal: AbortSignal.timeout(10000) });

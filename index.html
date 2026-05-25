@@ -363,10 +363,10 @@ body {
     flex-direction: column;
   }
 
-  /* Auf Mobil: CALLSIGN, ROUTE, ALT, DIST, SPD, # (keine AIRLINE, kein AIRCRAFT) */
+  /* Auf Mobil: CALLSIGN, AIRLINE, ROUTE, ALT, DIST, SPD (kein AIRCRAFT) */
   #list-header,
   .ac-row {
-    grid-template-columns: 76px 66px 50px 44px 42px;
+    grid-template-columns: 66px 56px 54px 46px 36px 34px;
     font-size: 0.62rem;
     gap: 3px;
   }
@@ -377,8 +377,8 @@ body {
     padding: 7px 8px;
     min-height: 34px;
   }
-  /* AIRLINE + AIRCRAFT ausblenden, ROUTE bleibt */
-  .col-airline, .col-type { display: none !important; }
+  /* Nur AIRCRAFT ausblenden, AIRLINE bleibt sichtbar */
+  .col-type { display: none !important; }
 
   /* ── Detail-Panel: Bottom Sheet ──────────── */
   #detail-panel {
@@ -437,7 +437,7 @@ body {
   #controls input[type=number] { width: 38px; }
   #list-header,
   .ac-row {
-    grid-template-columns: 68px 58px 46px 40px 38px;
+    grid-template-columns: 62px 52px 48px 40px 34px 30px;
   }
 }
 </style>
@@ -1189,214 +1189,4 @@ async function selectAircraft(hex) {
   `;
 
   // Flight data
-  document.getElementById('dp-type').textContent = typeFull||'–';
-  document.getElementById('dp-reg').textContent = ac.r||'–';
-  document.getElementById('dp-hex').textContent = (ac.hex||'–').toUpperCase();
-  document.getElementById('dp-squawk').textContent = ac.squawk||'–';
-  document.getElementById('dp-alt').textContent = fmtAltFull(ac.alt_baro);
-  document.getElementById('dp-spd').textContent = ac.gs?`${Math.round(ac.gs)} kt`:'–';
-  document.getElementById('dp-hdg').textContent = ac.track!=null?`${Math.round(ac.track)}°`:'–';
-  const vr = ac.baro_rate;
-  document.getElementById('dp-vrate').textContent = vr!=null?`${vr>0?'▲':'▼'} ${Math.abs(vr)} fpm`:'–';
-  document.getElementById('dp-dist').textContent = ac._dst<9999?`${ac._dst.toFixed(2)} nm`:'–';
-  document.getElementById('dp-rssi').textContent = ac.rssi!=null?`${ac.rssi.toFixed(1)} dBFS`:'–';
-
-  panel.classList.add('visible');
-
-  // Route (async)
-  document.getElementById('dp-orig-iata').textContent = '…';
-  document.getElementById('dp-dest-iata').textContent = '…';
-  document.getElementById('dp-orig-city').textContent = '';
-  document.getElementById('dp-dest-city').textContent = '';
-  document.getElementById('dp-dist-label').textContent = '–';
-
-  const route = await fetchRoute(call);
-  if (route) {
-    document.getElementById('dp-orig-iata').textContent = route.orig.iata;
-    document.getElementById('dp-dest-iata').textContent = route.dest.iata;
-    document.getElementById('dp-orig-city').textContent = route.orig.city;
-    document.getElementById('dp-dest-city').textContent = route.dest.city;
-    document.getElementById('dp-dist-label').textContent = `${ac._dst<9999?ac._dst.toFixed(0):'?'} nm`;
-    renderList(); // Route-Spalte aktualisieren
-  } else {
-    document.getElementById('dp-orig-iata').textContent = '–';
-    document.getElementById('dp-dest-iata').textContent = '–';
-    document.getElementById('dp-orig-city').textContent = 'Keine Routendaten';
-    document.getElementById('dp-dest-city').textContent = '';
-  }
-}
-
-function closeDetail() {
-  selectedHex=null;
-  document.getElementById('detail-panel').classList.remove('visible');
-  drawRadar(); renderList();
-}
-
-// ══════════════════════════════════════════════
-// STATUS / TOAST / GPS
-// ══════════════════════════════════════════════
-function setGpsStatus(c,t){ document.getElementById('gps-dot').className='dot '+c; document.getElementById('gps-txt').textContent='GPS: '+t; }
-function setApiStatus(c,t){ document.getElementById('api-dot').className='dot '+c; document.getElementById('api-txt').textContent='API: '+t; }
-
-function showToast(msg,isAlert=false) {
-  const c=document.getElementById('toast-container');
-  const t=document.createElement('div');
-  t.className='toast'+(isAlert?' alert':'');
-  t.textContent=msg;
-  c.appendChild(t);
-  setTimeout(()=>t.remove(),5000);
-}
-
-// ══════════════════════════════════════════════
-// LOCATION MODAL
-// ══════════════════════════════════════════════
-let locationResolve = null;
-
-function setPreset(lat, lon) {
-  document.getElementById('inp-lat').value = lat;
-  document.getElementById('inp-lon').value = lon;
-  ['inp-lat','inp-lon'].forEach(id => {
-    const el = document.getElementById(id);
-    el.style.borderColor = '#4af';
-    setTimeout(() => el.style.borderColor = '', 600);
-  });
-}
-
-function tryGps() {
-  const btn = document.getElementById('loc-gps-btn');
-  btn.textContent = '📍 Ermittle Standort…';
-  btn.disabled = true;
-  if (!navigator.geolocation) {
-    btn.textContent = '📍 GPS nicht verfügbar';
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      document.getElementById('inp-lat').value = pos.coords.latitude.toFixed(5);
-      document.getElementById('inp-lon').value = pos.coords.longitude.toFixed(5);
-      btn.textContent = `✓ ${pos.coords.latitude.toFixed(3)}, ${pos.coords.longitude.toFixed(3)}`;
-      btn.style.borderColor = '#3f9';
-    },
-    err => {
-      btn.textContent = '⚠ GPS verweigert – bitte manuell eingeben';
-      btn.disabled = false;
-    },
-    { enableHighAccuracy: false, timeout: 8000 }
-  );
-}
-
-function applyLocation(lat, lon) {
-  myLat = lat; myLon = lon;
-  setGpsStatus('green', `${lat.toFixed(3)}, ${lon.toFixed(3)}`);
-  document.getElementById('footer-pos').textContent =
-    `Pos: ${lat.toFixed(4)}°N ${lon.toFixed(4)}°E`;
-}
-
-function confirmLocation() {
-  const lat = parseFloat(document.getElementById('inp-lat').value);
-  const lon = parseFloat(document.getElementById('inp-lon').value);
-  const latEl = document.getElementById('inp-lat');
-  const lonEl = document.getElementById('inp-lon');
-  if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-    latEl.style.borderColor = '#f44';
-    lonEl.style.borderColor = '#f44';
-    latEl.placeholder = 'Bitte gültige Zahl';
-    lonEl.placeholder = 'Bitte gültige Zahl';
-    return;
-  }
-  applyLocation(lat, lon);
-  document.getElementById('loc-modal').classList.remove('visible');
-  if (locationResolve) { locationResolve(); locationResolve = null; }
-}
-
-// Allow Enter key in inputs
-document.getElementById('inp-lat').addEventListener('keydown', e => { if(e.key==='Enter') confirmLocation(); });
-document.getElementById('inp-lon').addEventListener('keydown', e => { if(e.key==='Enter') confirmLocation(); });
-
-// GPS label click → reopen modal
-document.getElementById('gps-txt').style.cursor = 'pointer';
-document.getElementById('gps-txt').title = 'Klicken zum Ändern';
-document.getElementById('gps-txt').addEventListener('click', () => {
-  if (myLat) {
-    document.getElementById('inp-lat').value = myLat.toFixed(5);
-    document.getElementById('inp-lon').value = myLon.toFixed(5);
-  }
-  document.getElementById('loc-gps-btn').textContent = '📍 Meinen Standort automatisch ermitteln';
-  document.getElementById('loc-gps-btn').disabled = false;
-  locationResolve = () => { drawRadar(); fetchData(); };
-  document.getElementById('loc-modal').classList.add('visible');
-});
-
-// ══════════════════════════════════════════════
-// GPS HELPERS
-// ══════════════════════════════════════════════
-
-// Versucht GPS zu ermitteln; zeigt Modal wenn nicht moeglich
-function getLocation() {
-  return new Promise(resolve => {
-    if (!navigator.geolocation) {
-      showLocationModal(resolve);
-      return;
-    }
-    setGpsStatus('yellow', 'Ermittle...');
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        applyLocation(pos.coords.latitude, pos.coords.longitude);
-        resolve();
-      },
-      err => {
-        setGpsStatus('red', 'Verweigert');
-        showLocationModal(resolve);
-      },
-      { enableHighAccuracy: false, timeout: 10000 }
-    );
-  });
-}
-
-// Stille GPS-Aktualisierung im Hintergrund (kein Modal)
-function refreshGpsQuiet() {
-  if (!navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition(
-    pos => {
-      applyLocation(pos.coords.latitude, pos.coords.longitude);
-    },
-    () => { /* silent fail - alte Position behalten */ },
-    { enableHighAccuracy: false, timeout: 8000 }
-  );
-}
-
-function showLocationModal(resolve) {
-  locationResolve = resolve;
-  document.getElementById('loc-modal').classList.add('visible');
-}
-
-// ══════════════════════════════════════════════
-// INIT - GPS automatisch, kein Startbildschirm
-// ══════════════════════════════════════════════
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-drawRadar();
-
-// GPS zuerst versuchen -> direkt Radar starten, kein Modal
-getLocation().then(() => {
-  if (myLat) fetchData();
-});
-
-// ── Auto-Refresh: setInterval statt setTimeout-Kette ─────
-// setInterval ist robuster – bricht nicht wenn zwei Aufrufe
-// gleichzeitig kommen. isFetching-Guard verhindert Überlappung.
-setInterval(() => { if (myLat) fetchData(); }, REFRESH_MS);
-
-// ── GPS alle 5 Minuten still aktualisieren ────────────────
-setInterval(refreshGpsQuiet, 5 * 60 * 1000);
-
-// ── Page Visibility API ───────────────────────────────────
-// Sofort neu laden wenn App aus Hintergrund zurückkommt.
-// (Mobile Browser pausieren Timers im Hintergrund.)
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && myLat) {
-    fetchData();
-  }
-});
-</script>
-</body>
+  document.getElem

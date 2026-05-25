@@ -1051,6 +1051,7 @@ async function fetchData() {
     aircraft = fresh;
     renderList();
     drawRadar();
+    lastFetchTime = Date.now();
     setApiStatus('green', `${data.total??Object.keys(aircraft).length} Flugzeuge`);
     document.getElementById('last-update').textContent = 'Update: '+new Date().toLocaleTimeString('de-DE');
     document.getElementById('count-txt').textContent = `${Object.keys(aircraft).length} Flugzeuge`;
@@ -1334,5 +1335,21 @@ getLocation().then(() => {
 
 // GPS separat alle 5 Minuten still aktualisieren (nicht beim Datenabruf)
 setInterval(refreshGpsQuiet, 5 * 60 * 1000);
+
+// ── Page Visibility API ───────────────────────
+// Wenn App aus dem Hintergrund zurückkommt (Displaysperre,
+// Tab-Wechsel etc.) sofort neu laden – Timer laufen auf
+// mobilen Geräten im Hintergrund nicht weiter.
+let lastFetchTime = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && myLat) {
+    const secondsSinceFetch = (Date.now() - lastFetchTime) / 1000;
+    // Nur neu laden wenn letzter Fetch > 30 Sekunden her
+    if (secondsSinceFetch > 30) {
+      clearTimeout(refreshTimer);
+      fetchData();
+    }
+  }
+});
 </script>
 </body>

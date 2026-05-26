@@ -996,10 +996,8 @@ async function fetchRoute(callsign) {
     if (!r.ok) return null;
     const d = await r.json();
     const fr = d?.response?.flightroute;
-    // Airline-Name aus der Antwort extrahieren und cachen (pro vollständigem Callsign)
-    if (fr?.airline?.name) {
-      operatorCache[cs] = fr.airline.name;
-    }
+    // Airline-Name wird nicht hier gecacht – fetchOperator() macht das zuverlässiger
+    // mit Registrierungs-Fallback (SP- = Sprint Air, HA- = Fleet Air etc.)
     if (!fr?.origin?.iata_code || !fr?.destination?.iata_code) return null;
     const route = {
       orig: { iata: fr.origin.iata_code,      icao: fr.origin.icao_code,      city: fr.origin.municipality      || fr.origin.name },

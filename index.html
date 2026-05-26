@@ -806,11 +806,26 @@ const REFRESH_MS = 60000;
 // ══════════════════════════════════════════════
 // LOOKUP HELPERS
 // ══════════════════════════════════════════════
-function getAirline(callsign) {
+
+// Registrierungspräfix → Airline (für Fälle wo Callsign-Prefix mehrdeutig ist)
+const REG_PREFIX_AIRLINES = {
+  'SP-': 'Sprint Air',   // Polen
+  'HA-': 'Fleet Air International', // Ungarn
+};
+
+function getAirline(callsign, reg) {
   if (!callsign) return '';
   const cs = callsign.trim();
-  // Vollständiger Callsign hat Vorrang (verhindert Prefix-Kollisionen wie SRN = Fleer Air vs. Sprint Air)
+  // 1. Callsign-spezifischer Cache (aus API-Antwort)
   if (operatorCache[cs]) return operatorCache[cs];
+  // 2. Registrierungspräfix (löst Mehrdeutigkeiten wie SRN auf)
+  if (reg) {
+    const regUp = reg.trim().toUpperCase();
+    for (const [pfx, name] of Object.entries(REG_PREFIX_AIRLINES)) {
+      if (regUp.startsWith(pfx)) return name;
+    }
+  }
+  // 3. Hardcodierte ICAO-Prefix-Map
   return AIRLINES[cs.slice(0,3).toUpperCase()] || '';
 }
 
@@ -1106,7 +1121,7 @@ async function fetchData() {
           // Toast nur bei echtem Neuzugang (nicht beim initialen Load)
           const dst = ac.dst ?? (ac.lat!=null ? haversine(myLat,myLon,ac.lat,ac.lon) : 999);
           const call = (ac.flight||ac.hex||'').trim();
-          const airline = getAirline(ac.flight);
+          const airline = getAirline(ac.flight, ac.r);
           if (dst <= alertNm) {
             showToast(`🚨 ${call}${airline?' – '+airline:''} – ${dst.toFixed(1)} nm – ${fmtAlt(ac.alt_baro)}`, true);
           } else {
@@ -1161,7 +1176,7 @@ function renderList() {
     row.dataset.hex = ac.hex;
 
     const call = (ac.flight||'').trim()||ac.hex;
-    const airline = getAirline(ac.flight||'');
+    const airline = getAirline(ac.flight||'', ac.r);
     const typeName = ac.t ? (AIRCRAFT_TYPES[ac.t.toUpperCase()]||ac.t) : '–';
     const rt = routeCache[call];
     const routeStr = rt ? `${rt.orig.iata}›${rt.dest.iata}` : '–';
@@ -1191,7 +1206,7 @@ async function selectAircraft(hex) {
   if (!ac || !selectedHex) { panel.classList.remove('visible'); return; }
 
   const call = (ac.flight||'').trim()||ac.hex;
-  const airline = getAirline(ac.flight||'');
+  const airline = getAirline(ac.flight||'', ac.r);
   const typeFull = getAircraftName(ac.t||'');
 
   // Header

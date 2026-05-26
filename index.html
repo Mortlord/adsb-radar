@@ -648,7 +648,7 @@ const AIRLINES = {
   MSR:'Egyptair', MXD:'MaxAir', NAX:'Norwegian',
   NCA:'Nippon Cargo Airlines', NGX:'Nightexpress', NMB:'Air Namibia',
   NOZ:'Norwegian Air Shuttle', NWA:'Northwest Airlines',
-  NZM:'Sounds Air', OAL:'Olympic Air', OMA:'Oman Air',
+  NZM:'Sounds Air', OAL:'Olympic Air', OCN:'Discover Airlines', OMA:'Oman Air',
   OZZ:'Overland Airways', PAC:'Polar Air Cargo', PAL:'Philippine Airlines',
   PGA:'TAP Express', PGT:'Pegasus Airlines', PKC:'Pelikaan',
   PLM:'Pelita Air', PTV:'Poste Air Cargo', PUA:'PLUNA',
@@ -1030,7 +1030,9 @@ async function fetchOperator(callsign) {
       const name = d?.response?.flightroute?.airline?.name;
       if (name) { operatorCache[cs] = name; return name; }
     }
-    // Fallback: Operator-API per Prefix (weniger präzise, aber breiter abgedeckt)
+    // Fallback 1: hardcodierte Map (zuverlässiger als externe API)
+    if (AIRLINES[prefix]) { operatorCache[cs] = AIRLINES[prefix]; return operatorCache[cs]; }
+    // Fallback 2: Operator-API per Prefix (kann veraltet sein)
     const r2 = await fetch(`https://api.adsbdb.com/v0/operator/${encodeURIComponent(prefix)}`,
                            {signal: AbortSignal.timeout(6000)});
     if (r2.ok) {

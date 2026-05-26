@@ -1000,8 +1000,8 @@ async function fetchRoute(callsign) {
     // mit Registrierungs-Fallback (SP- = Sprint Air, HA- = Fleet Air etc.)
     if (!fr?.origin?.iata_code || !fr?.destination?.iata_code) return null;
     const route = {
-      orig: { iata: fr.origin.iata_code,      icao: fr.origin.icao_code,      city: fr.origin.municipality      || fr.origin.name },
-      dest: { iata: fr.destination.iata_code, icao: fr.destination.icao_code, city: fr.destination.municipality || fr.destination.name },
+      orig: { iata: fr.origin.iata_code,      icao: fr.origin.icao_code,      city: AIRPORTS[fr.origin.iata_code] || AIRPORTS[fr.origin.icao_code] || fr.origin.municipality      || fr.origin.name },
+      dest: { iata: fr.destination.iata_code, icao: fr.destination.icao_code, city: AIRPORTS[fr.destination.iata_code] || AIRPORTS[fr.destination.icao_code] || fr.destination.municipality || fr.destination.name },
     };
     routeCache[cs] = route;
     return route;

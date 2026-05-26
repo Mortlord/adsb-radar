@@ -657,7 +657,7 @@ const AIRLINES = {
   RYR:'Ryanair', SAA:'South African Airways', SAB:'Sabena',
   SAS:'Scandinavian Airlines', SAW:'Saudia', SBI:'Siberia Airlines',
   SFA:'Safair', SIA:'Singapore Airlines', SKW:'SkyWest Airlines',
-  SLM:'Surinam Airways', SWA:'Southwest Airlines', SXS:'Sunexpress',
+  SLM:'Surinam Airways', SRN:'Sprint Air', SWA:'Southwest Airlines', SXS:'Sunexpress',
   TAL:'TALAIR', TAM:'LATAM Brasil', TAP:'TAP Air Portugal',
   THA:'Thai Airways', THY:'Turkish Airlines', TOM:'TUI Airways',
   TRK:'TruckAir', TUI:'TUI fly', TWA:'Trans World Airlines',
@@ -807,25 +807,12 @@ const REFRESH_MS = 60000;
 // LOOKUP HELPERS
 // ══════════════════════════════════════════════
 
-// Registrierungspräfix → Airline (für Fälle wo Callsign-Prefix mehrdeutig ist)
-const REG_PREFIX_AIRLINES = {
-  'SP-': 'Sprint Air',   // Polen
-  'HA-': 'Fleet Air International', // Ungarn
-};
-
 function getAirline(callsign, reg) {
   if (!callsign) return '';
   const cs = callsign.trim();
-  // 1. Callsign-spezifischer Cache (aus API-Antwort)
+  // 1. Callsign-spezifischer Cache (aus API)
   if (operatorCache[cs]) return operatorCache[cs];
-  // 2. Registrierungspräfix (löst Mehrdeutigkeiten wie SRN auf)
-  if (reg) {
-    const regUp = reg.trim().toUpperCase();
-    for (const [pfx, name] of Object.entries(REG_PREFIX_AIRLINES)) {
-      if (regUp.startsWith(pfx)) return name;
-    }
-  }
-  // 3. Hardcodierte ICAO-Prefix-Map
+  // 2. Hardcodierte ICAO-Prefix-Map
   return AIRLINES[cs.slice(0,3).toUpperCase()] || '';
 }
 
@@ -1039,20 +1026,11 @@ async function fetchOperator(callsign, reg) {
   if (!/^[A-Z]{3}$/.test(prefix)) return null;
   if (Object.prototype.hasOwnProperty.call(operatorCache, cs)) return operatorCache[cs];
 
-  // 1. Registrierung hat absoluten Vorrang – verhindert veraltete API-Namen
-  if (reg) {
-    const regUp = reg.trim().toUpperCase();
-    for (const [pfx, name] of Object.entries(REG_PREFIX_AIRLINES)) {
-      if (regUp.startsWith(pfx)) {
-        operatorCache[cs] = name;
-        return name;
-      }
-    }
-  }
+  // Hardcodierte Map hat Vorrang – verhindert veraltete adsbdb-Einträge
+  if (AIRLINES[prefix]) { operatorCache[cs] = AIRLINES[prefix]; return operatorCache[cs]; }
 
-  operatorCache[cs] = null; // Platzhalter gegen Doppel-Anfragen
+  operatorCache[cs] = null;
   try {
-    // Callsign-API versuchen
     const r = await fetch(`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(cs)}`,
                           {signal: AbortSignal.timeout(6000)});
     if (r.ok) {
@@ -1060,8 +1038,6 @@ async function fetchOperator(callsign, reg) {
       const name = d?.response?.flightroute?.airline?.name;
       if (name) { operatorCache[cs] = name; return name; }
     }
-    // Fallback: hardcodierte Map
-    if (AIRLINES[prefix]) { operatorCache[cs] = AIRLINES[prefix]; return operatorCache[cs]; }
   } catch { /* ignore */ }
   return operatorCache[cs];
 }

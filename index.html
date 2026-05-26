@@ -1032,15 +1032,27 @@ async function fetchAllRoutes() {
 // ══════════════════════════════════════════════
 // AIRLINE-NAME via adsbdb Operator-API
 // ══════════════════════════════════════════════
-async function fetchOperator(callsign) {
+async function fetchOperator(callsign, reg) {
   if (!callsign) return null;
   const cs = callsign.trim();
   const prefix = cs.slice(0,3).toUpperCase();
   if (!/^[A-Z]{3}$/.test(prefix)) return null;
   if (Object.prototype.hasOwnProperty.call(operatorCache, cs)) return operatorCache[cs];
+
+  // 1. Registrierung hat absoluten Vorrang – verhindert veraltete API-Namen
+  if (reg) {
+    const regUp = reg.trim().toUpperCase();
+    for (const [pfx, name] of Object.entries(REG_PREFIX_AIRLINES)) {
+      if (regUp.startsWith(pfx)) {
+        operatorCache[cs] = name;
+        return name;
+      }
+    }
+  }
+
   operatorCache[cs] = null; // Platzhalter gegen Doppel-Anfragen
   try {
-    // Callsign-API versuchen (liefert flugspezifischen Airline-Namen)
+    // Callsign-API versuchen
     const r = await fetch(`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(cs)}`,
                           {signal: AbortSignal.timeout(6000)});
     if (r.ok) {
@@ -1048,25 +1060,24 @@ async function fetchOperator(callsign) {
       const name = d?.response?.flightroute?.airline?.name;
       if (name) { operatorCache[cs] = name; return name; }
     }
-    // Fallback: hardcodierte Map (Operator-API wird nicht mehr genutzt – zu viele veraltete Einträge)
+    // Fallback: hardcodierte Map
     if (AIRLINES[prefix]) { operatorCache[cs] = AIRLINES[prefix]; return operatorCache[cs]; }
   } catch { /* ignore */ }
-  return operatorCache[cs]; // bleibt null → getAirline() greift auf Registrierung zurück
+  return operatorCache[cs];
 }
 
 async function fetchAllOperators() {
-  // Pro vollständigem Callsign cachen, nicht pro Prefix
-  const callsigns = [...new Set(
+  const candidates = [...new Map(
     Object.values(aircraft)
-      .map(ac => (ac.flight||'').trim())
-      .filter(cs => cs.length >= 3
-                 && /^[A-Z]{3}/.test(cs)
-                 && !Object.prototype.hasOwnProperty.call(operatorCache, cs))
-  )];
-  // Alle parallel, maximal 6 gleichzeitig
+      .filter(ac => (ac.flight||'').trim().length >= 3
+                 && /^[A-Z]{3}/.test((ac.flight||'').trim())
+                 && !Object.prototype.hasOwnProperty.call(operatorCache, (ac.flight||'').trim()))
+      .map(ac => [(ac.flight||'').trim(), ac.r||''])
+  ).entries()]; // [[callsign, reg], ...]
+
   const BATCH = 6;
-  for (let i = 0; i < callsigns.length; i += BATCH) {
-    await Promise.all(callsigns.slice(i, i + BATCH).map(cs => fetchOperator(cs)));
+  for (let i = 0; i < candidates.length; i += BATCH) {
+    await Promise.all(candidates.slice(i, i + BATCH).map(([cs, reg]) => fetchOperator(cs, reg)));
     renderList();
   }
 }

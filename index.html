@@ -1042,7 +1042,7 @@ async function fetchOperator(callsign) {
   if (Object.prototype.hasOwnProperty.call(operatorCache, cs)) return operatorCache[cs];
   operatorCache[cs] = null; // Platzhalter gegen Doppel-Anfragen
   try {
-    // Erst Callsign-API versuchen (liefert flugspezifischen Airline-Namen)
+    // Callsign-API versuchen (liefert flugspezifischen Airline-Namen)
     const r = await fetch(`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(cs)}`,
                           {signal: AbortSignal.timeout(6000)});
     if (r.ok) {
@@ -1050,18 +1050,10 @@ async function fetchOperator(callsign) {
       const name = d?.response?.flightroute?.airline?.name;
       if (name) { operatorCache[cs] = name; return name; }
     }
-    // Fallback 1: hardcodierte Map (zuverlässiger als externe API)
+    // Fallback: hardcodierte Map (Operator-API wird nicht mehr genutzt – zu viele veraltete Einträge)
     if (AIRLINES[prefix]) { operatorCache[cs] = AIRLINES[prefix]; return operatorCache[cs]; }
-    // Fallback 2: Operator-API per Prefix (kann veraltet sein)
-    const r2 = await fetch(`https://api.adsbdb.com/v0/operator/${encodeURIComponent(prefix)}`,
-                           {signal: AbortSignal.timeout(6000)});
-    if (r2.ok) {
-      const d2 = await r2.json();
-      const name = d2?.response?.airline?.name;
-      operatorCache[cs] = name || null;
-    }
-    return operatorCache[cs];
-  } catch { return null; }
+  } catch { /* ignore */ }
+  return operatorCache[cs]; // bleibt null → getAirline() greift auf Registrierung zurück
 }
 
 async function fetchAllOperators() {

@@ -806,12 +806,10 @@ const REFRESH_MS = 60000;
 // ══════════════════════════════════════════════
 function getAirline(callsign) {
   if (!callsign) return '';
-  const prefix = callsign.trim().slice(0,3).toUpperCase();
-  // Live-Datenbank hat Vorrang, danach hardcodierte Fallback-Liste
-  if (Object.prototype.hasOwnProperty.call(operatorCache, prefix)) {
-    return operatorCache[prefix] || AIRLINES[prefix] || '';
-  }
-  return AIRLINES[prefix] || '';
+  const cs = callsign.trim();
+  // Vollständiger Callsign hat Vorrang (verhindert Prefix-Kollisionen wie SRN = Fleer Air vs. Sprint Air)
+  if (operatorCache[cs]) return operatorCache[cs];
+  return AIRLINES[cs.slice(0,3).toUpperCase()] || '';
 }
 
 function getAircraftName(code) {
@@ -981,12 +979,9 @@ async function fetchRoute(callsign) {
     if (!r.ok) return null;
     const d = await r.json();
     const fr = d?.response?.flightroute;
-    // Airline-Name aus der Antwort extrahieren und cachen (kostenlos mitgeliefert)
+    // Airline-Name aus der Antwort extrahieren und cachen (pro vollständigem Callsign)
     if (fr?.airline?.name) {
-      const prefix = cs.slice(0, 3).toUpperCase();
-      if (!Object.prototype.hasOwnProperty.call(operatorCache, prefix)) {
-        operatorCache[prefix] = fr.airline.name;
-      }
+      operatorCache[cs] = fr.airline.name;
     }
     if (!fr?.origin?.iata_code || !fr?.destination?.iata_code) return null;
     const route = {
@@ -1019,32 +1014,47 @@ async function fetchAllRoutes() {
 // ══════════════════════════════════════════════
 // AIRLINE-NAME via adsbdb Operator-API
 // ══════════════════════════════════════════════
-async function fetchOperator(prefix) {
-  if (!prefix || !/^[A-Z]{3}$/.test(prefix)) return null;
-  if (Object.prototype.hasOwnProperty.call(operatorCache, prefix)) return operatorCache[prefix];
-  operatorCache[prefix] = null; // Platzhalter gegen Doppel-Anfragen
+async function fetchOperator(callsign) {
+  if (!callsign) return null;
+  const cs = callsign.trim();
+  const prefix = cs.slice(0,3).toUpperCase();
+  if (!/^[A-Z]{3}$/.test(prefix)) return null;
+  if (Object.prototype.hasOwnProperty.call(operatorCache, cs)) return operatorCache[cs];
+  operatorCache[cs] = null; // Platzhalter gegen Doppel-Anfragen
   try {
-    const r = await fetch(`https://api.adsbdb.com/v0/operator/${encodeURIComponent(prefix)}`,
+    // Erst Callsign-API versuchen (liefert flugspezifischen Airline-Namen)
+    const r = await fetch(`https://api.adsbdb.com/v0/callsign/${encodeURIComponent(cs)}`,
                           {signal: AbortSignal.timeout(6000)});
-    if (!r.ok) return null;
-    const d = await r.json();
-    const name = d?.response?.airline?.name;
-    operatorCache[prefix] = name || null;
-    return operatorCache[prefix];
+    if (r.ok) {
+      const d = await r.json();
+      const name = d?.response?.flightroute?.airline?.name;
+      if (name) { operatorCache[cs] = name; return name; }
+    }
+    // Fallback: Operator-API per Prefix (weniger präzise, aber breiter abgedeckt)
+    const r2 = await fetch(`https://api.adsbdb.com/v0/operator/${encodeURIComponent(prefix)}`,
+                           {signal: AbortSignal.timeout(6000)});
+    if (r2.ok) {
+      const d2 = await r2.json();
+      const name = d2?.response?.airline?.name;
+      operatorCache[cs] = name || null;
+    }
+    return operatorCache[cs];
   } catch { return null; }
 }
 
 async function fetchAllOperators() {
-  const prefixes = [...new Set(
+  // Pro vollständigem Callsign cachen, nicht pro Prefix
+  const callsigns = [...new Set(
     Object.values(aircraft)
-      .map(ac => (ac.flight||'').trim().slice(0,3).toUpperCase())
-      .filter(p => p.length === 3 && /^[A-Z]{3}$/.test(p)
-                && !Object.prototype.hasOwnProperty.call(operatorCache, p))
+      .map(ac => (ac.flight||'').trim())
+      .filter(cs => cs.length >= 3
+                 && /^[A-Z]{3}/.test(cs)
+                 && !Object.prototype.hasOwnProperty.call(operatorCache, cs))
   )];
   // Alle parallel, maximal 6 gleichzeitig
   const BATCH = 6;
-  for (let i = 0; i < prefixes.length; i += BATCH) {
-    await Promise.all(prefixes.slice(i, i + BATCH).map(p => fetchOperator(p)));
+  for (let i = 0; i < callsigns.length; i += BATCH) {
+    await Promise.all(callsigns.slice(i, i + BATCH).map(cs => fetchOperator(cs)));
     renderList();
   }
 }

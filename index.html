@@ -1011,6 +1011,9 @@ async function fetchAllRoutes() {
     await Promise.all(batch.map(cs => fetchRoute(cs)));
     renderList();
   }
+
+  // Für Callsigns ohne Routendaten trotzdem Airline-Namen nachholen
+  await fetchAllOperators();
 }
 
 // ══════════════════════════════════════════════

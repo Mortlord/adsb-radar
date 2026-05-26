@@ -347,7 +347,7 @@ body {
   /* ── Radar oben, kompakt ─────────────────── */
   #radar-panel {
     flex: 0 0 auto;
-    height: min(52vw, 260px);
+    height: min(62vw, 300px);
     padding: 6px;
     width: 100%;
     justify-content: center;
@@ -612,7 +612,7 @@ const AIRLINES = {
   AVA:'Avianca', AVN:'Air Vanuatu', AXB:'Air Arabia',
   AXM:'AirAsia X', AZA:'ITA Airways', AZU:'Azul Airlines',
   BAW:'British Airways', BBD:'Badr Airlines', BCI:'Blue Islands',
-  BCY:'Cityjet', BEE:'Flybe', BER:'Air Berlin',
+  BCS:'Brussels Airlines', BCY:'Cityjet', BEE:'Flybe', BER:'Air Berlin',
   BGA:'Conviasa', BGR:'Belavia', BKP:'Bangkok Airways',
   BLF:'Blue Air', BOX:'AeroLogic', BTI:'airBaltic',
   BUC:'Bucharest', CAL:'China Airlines', CAO:'Air China Cargo',
@@ -630,7 +630,7 @@ const AIRLINES = {
   EXS:'Jet2', EZS:'easyJet Switzerland', EZY:'easyJet',
   FCO:'Falcon Air Express', FDB:'flydubai', FDX:'FedEx',
   FFT:'Frontier Airlines', FIN:'Finnair', FJI:'Fiji Airways',
-  FLT:'Flytalya', FUA:'Futura', GEC:'Lufthansa Cargo',
+  FLT:'Flytalya', FRF:'Fleet Air International', FUA:'Futura', GEC:'Lufthansa Cargo',
   GFA:'Gulf Air', GIA:'Garuda Indonesia', GLO:'Gol Linhas Aéreas',
   GRL:'Greenlandair', GTI:'Atlas Air', GXA:'Global Express',
   HAL:'Hawaiian Airlines', HDA:'Dragonair', HVN:'Vietnam Airlines',
@@ -745,7 +745,9 @@ const AIRCRAFT_TYPES = {
 
 // ICAO airport codes → City name (major airports)
 const AIRPORTS = {
-  // Europe
+  LFSB:'Bâle/Mulhouse', // ICAO
+  // IATA-Aliase Euroairport
+  BSL:'Bâle/Mulhouse', EAP:'Bâle/Mulhouse', MLH:'Bâle/Mulhouse',
   EDDF:'Frankfurt',   EDDM:'München',     EDDB:'Berlin',
   EDDL:'Düsseldorf',  EDDS:'Stuttgart',   EDDH:'Hamburg',
   EDDC:'Dresden',     EDDV:'Hannover',     EDDN:'Nürnberg',

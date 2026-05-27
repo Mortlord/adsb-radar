@@ -9,7 +9,7 @@ Live ADS-B Flugzeug-Radar im Browser – GPS-basiert, überall nutzbar.
 ## Features
 
 - **Live-Radar** – alle Flugzeuge im einstellbaren Radius (10–500 nm)
-- **GPS-Standort** – automatisch oder manuell wählbar (8 Städte-Presets)
+- **GPS-Standort** – automatisch über den Browser ermittelt
 - **FR24-Style Detailansicht** – Airline, Flugzeugtyp, Callsign, Registration
 - **Origin → Destination** – Routendaten via adsbdb
 - **Alert-Zone** – Benachrichtigung wenn ein Flugzeug den konfigurierbaren Radius unterschreitet
@@ -24,6 +24,12 @@ Live ADS-B Flugzeug-Radar im Browser – GPS-basiert, überall nutzbar.
 |---|---|
 | [airplanes.live](https://airplanes.live) | Live-Flugzeugdaten (kostenlos, öffentlich) |
 | [adsbdb.com](https://adsbdb.com) | Routendaten Origin/Destination sowie Airline-Namen |
+
+---
+
+## Hinweis
+
+Die App benötigt Zugriff auf den GPS-Standort des Geräts. Wird der Zugriff verweigert, erscheint eine entsprechende Meldung. Standortzugriff in den Browser-Einstellungen erlauben und Seite neu laden.
 
 ---
 
@@ -50,3 +56,4 @@ python server.py
 ```
 
 Öffnet automatisch [http://localhost:8080](http://localhost:8080).
+

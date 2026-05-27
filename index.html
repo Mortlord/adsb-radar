@@ -255,44 +255,8 @@ body {
 #loc-box h2 { color: #4af; font-size: 1rem; letter-spacing: 1px; margin-bottom: 6px; }
 #loc-box p  { color: #7a9ccc; font-size: 0.72rem; margin-bottom: 18px; line-height: 1.5; }
 
-.loc-presets {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 6px; margin-bottom: 18px;
-}
-.loc-preset {
-  background: #111827; border: 1px solid #1e2d55;
-  color: #aac; padding: 6px 10px; border-radius: 5px;
-  cursor: pointer; font-size: 0.72rem; font-family: monospace;
-  text-align: left; transition: background .1s;
-}
-.loc-preset:hover { background: #1a2a4a; border-color: #2a5a8a; color: #4af; }
-.loc-preset small { display: block; color: #456; font-size: 0.62rem; margin-top: 1px; }
 
-.loc-divider {
-  display: flex; align-items: center; gap: 10px;
-  color: #456; font-size: 0.68rem; margin-bottom: 14px;
-}
-.loc-divider::before, .loc-divider::after {
-  content: ''; flex: 1; height: 1px; background: #1e2d55;
-}
 
-.loc-inputs { display: flex; gap: 10px; margin-bottom: 14px; }
-.loc-inputs label { flex: 1; font-size: 0.68rem; color: #7a9ccc; }
-.loc-inputs input {
-  display: block; width: 100%; margin-top: 4px;
-  background: #111827; border: 1px solid #1e2d55;
-  color: #e0e8ff; padding: 7px 10px; border-radius: 5px;
-  font-family: monospace; font-size: 0.82rem;
-}
-.loc-inputs input:focus { outline: none; border-color: #4af; }
-
-#loc-go {
-  width: 100%; padding: 9px;
-  background: #1a3a6a; border: 1px solid #2a5a9a;
-  color: #4af; border-radius: 5px; cursor: pointer;
-  font-family: monospace; font-size: 0.85rem; letter-spacing: 1px;
-}
-#loc-go:hover { background: #2a4a8a; }
 
 /* ══════════════════════════════════════════════
    MOBILE – max-width: 768px
@@ -532,54 +496,14 @@ body {
 </div>
 <div id="spinner">⟳ Lade…</div>
 
-<!-- Location picker modal -->
+<!-- GPS Fehlermeldung -->
 <div id="loc-modal">
   <div id="loc-box">
-    <h2>✈ STANDORT FESTLEGEN</h2>
-    <p>GPS nicht verfügbar oder verweigert. Wähle eine Stadt oder gib Koordinaten manuell ein.</p>
-
-    <div class="loc-presets">
-      <button class="loc-preset" onclick="setPreset(48.1374,11.5755)">
-        München<small>48.1374, 11.5755</small>
-      </button>
-      <button class="loc-preset" onclick="setPreset(52.5200,13.4050)">
-        Berlin<small>52.5200, 13.4050</small>
-      </button>
-      <button class="loc-preset" onclick="setPreset(53.5753,10.0153)">
-        Hamburg<small>53.5753, 10.0153</small>
-      </button>
-      <button class="loc-preset" onclick="setPreset(51.2217,6.7762)">
-        Düsseldorf<small>51.2217, 6.7762</small>
-      </button>
-      <button class="loc-preset" onclick="setPreset(50.1109,8.6821)">
-        Frankfurt<small>50.1109, 8.6821</small>
-      </button>
-      <button class="loc-preset" onclick="setPreset(48.7758,9.1829)">
-        Stuttgart<small>48.7758, 9.1829</small>
-      </button>
-      <button class="loc-preset" onclick="setPreset(47.3769,8.5417)">
-        Zürich<small>47.3769, 8.5417</small>
-      </button>
-      <button class="loc-preset" onclick="setPreset(48.2082,16.3738)">
-        Wien<small>48.2082, 16.3738</small>
-      </button>
-    </div>
-
+    <h2>✈ STANDORT ERFORDERLICH</h2>
+    <p>GPS nicht verfügbar oder verweigert.<br>Bitte erlaube den Standortzugriff in deinen Browser-Einstellungen und lade die Seite neu.</p>
     <button id="loc-gps-btn" onclick="tryGps()" style="width:100%;margin-bottom:14px;padding:8px;background:#0d2a1a;border:1px solid #2a6a3a;color:#3f9;border-radius:5px;cursor:pointer;font-family:monospace;font-size:0.8rem;">
-      📍 Meinen Standort automatisch ermitteln
+      📍 Nochmals versuchen
     </button>
-
-    <div class="loc-divider">oder Stadt wählen / manuell eingeben</div>
-
-    <div class="loc-inputs">
-      <label>Breitengrad (Lat)
-        <input type="number" id="inp-lat" step="0.0001" placeholder="z.B. 48.1374">
-      </label>
-      <label>Längengrad (Lon)
-        <input type="number" id="inp-lon" step="0.0001" placeholder="z.B. 11.5755">
-      </label>
-    </div>
-    <button id="loc-go" onclick="confirmLocation()">▶ RADAR STARTEN</button>
   </div>
 </div>
 
@@ -1353,24 +1277,8 @@ async function tryGps() {
   if (myLat) fetchData();
 }
 
-function setPreset(lat, lon) {
-  myLat = lat; myLon = lon;
-  document.getElementById('inp-lat').value = lat;
-  document.getElementById('inp-lon').value = lon;
-}
 
-function confirmLocation() {
-  const lat = parseFloat(document.getElementById('inp-lat').value);
-  const lon = parseFloat(document.getElementById('inp-lon').value);
-  if (isNaN(lat)||isNaN(lon)) { alert('Bitte gültige Koordinaten eingeben.'); return; }
-  myLat = lat; myLon = lon;
-  document.getElementById('footer-pos').textContent =
-    `Pos: ${myLat.toFixed(4)}, ${myLon.toFixed(4)}`;
-  setGpsStatus('yellow', 'Manuell');
-  document.getElementById('loc-modal').classList.remove('visible');
-  fetchTimezone(myLat, myLon);
-  fetchData();
-}
+
 
 async function refreshGpsQuiet() {
   if (!navigator.geolocation) return;

@@ -50,14 +50,6 @@ body {
 #refresh-btn:hover { background: #2a3a6a; }
 #refresh-btn:disabled { opacity:.5; cursor: not-allowed; }
 
-/* ── Desktop Layout (> 600px) ─────────────── */
-@media (min-width: 601px) {
-  #radar-panel {
-    flex: 0 0 min(40vw, 560px);
-    height: 100%;
-  }
-}
-
 /* ── Main Layout ──────────────────────────── */
 #main { display: flex; flex: 1; overflow: hidden; }
 
@@ -71,6 +63,14 @@ body {
   border-radius: 50%;
   box-shadow: 0 0 30px rgba(0,100,255,.15), 0 0 60px rgba(0,50,150,.08);
   touch-action: none;
+}
+
+/* ── Desktop Layout (> 600px) ─────────────── */
+@media (min-width: 601px) {
+  #radar-panel {
+    flex: 0 0 min(40vw, 560px);
+    height: 100%;
+  }
 }
 
 /* ── List ─────────────────────────────────── */

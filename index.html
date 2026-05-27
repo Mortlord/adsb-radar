@@ -1309,7 +1309,8 @@ async function refreshGpsQuiet() {
 autoSetRadius();
 setInterval(autoSetRadius, 60 * 1000);
 window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+// Nach dem Layout-Rendering aufrufen, nicht sofort
+requestAnimationFrame(() => requestAnimationFrame(resizeCanvas));
 drawRadar();
 getLocation().then(() => { if (myLat) fetchData(); });
 setInterval(() => { if (myLat) fetchData(); }, REFRESH_MS);

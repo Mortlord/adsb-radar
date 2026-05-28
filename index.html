@@ -404,7 +404,7 @@ body {
   </div>
   <div id="controls">
     <label>Radius: <input type="number" id="radius-input" value="25" min="10" max="500"> nm</label>
-    <label>Alert: <input type="number" id="alert-input" value="15" min="1" max="100"> nm</label>
+    <label>Alert: <input type="number" id="alert-input" value="10" min="1" max="100"> nm</label>
     <button id="refresh-btn" onclick="fetchData()">⟳ Refresh</button>
   </div>
 </div>
@@ -1209,7 +1209,7 @@ function autoSetRadius() {
   } catch {
     h = new Date().getHours();
   }
-  const target = (h >= 20 || h < 6) ? 35 : 25;
+  const target = (h >= 22 || h < 6) ? 35 : 25;
   const input = document.getElementById('radius-input');
   if (input && parseInt(input.value) !== target) input.value = target;
 }

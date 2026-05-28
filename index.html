@@ -187,28 +187,6 @@ body {
 .dp-field label { font-size: 0.6rem; color: #456; display: block; text-transform: uppercase; letter-spacing: .5px; }
 .dp-field span { font-size: 0.78rem; color: #e0e8ff; }
 
-.dp-progress {
-  padding: 8px 14px;
-  border-bottom: 1px solid #0f1830;
-}
-.progress-bar {
-  height: 3px; background: #1e2d55; border-radius: 2px; margin: 6px 0;
-  position: relative;
-}
-.progress-fill {
-  height: 100%; background: #fa3; border-radius: 2px;
-  transition: width .5s ease;
-}
-.progress-plane {
-  position: absolute; top: -5px;
-  font-size: 10px; transform: translateX(-50%);
-  color: #fa3;
-}
-.progress-labels {
-  display: flex; justify-content: space-between;
-  font-size: 0.6rem; color: #456;
-}
-
 /* ── Toast ────────────────────────────────── */
 #toast-container {
   position: fixed; top: 55px; left: 50%; transform: translateX(-50%);
@@ -485,15 +463,6 @@ body {
       <div class="dp-field"><label>Signal</label><span id="dp-rssi">–</span></div>
     </div>
   </div>
-  <div class="dp-section" id="dp-route-section" style="display:none">
-    <div class="dp-section-title">Streckenfortschritt</div>
-    <div class="dp-progress">
-      <div class="progress-labels"><span id="dp-prog-orig">–</span><span id="dp-prog-dest">–</span></div>
-      <div class="progress-bar">
-        <div class="progress-fill" id="dp-prog-bar" style="width:0%"></div>
-        <div class="progress-plane" id="dp-prog-plane">✈</div>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -919,8 +888,8 @@ async function fetchRoute(callsign) {
     // mit Registrierungs-Fallback (SP- = Sprint Air, HA- = Fleet Air etc.)
     if (!fr?.origin?.iata_code || !fr?.destination?.iata_code) return null;
     const route = {
-      orig: { iata: fr.origin.iata_code,      icao: fr.origin.icao_code,      city: AIRPORTS[fr.origin.iata_code] || AIRPORTS[fr.origin.icao_code] || fr.origin.municipality      || fr.origin.name, lat: fr.origin.latitude,      lon: fr.origin.longitude      },
-      dest: { iata: fr.destination.iata_code, icao: fr.destination.icao_code, city: AIRPORTS[fr.destination.iata_code] || AIRPORTS[fr.destination.icao_code] || fr.destination.municipality || fr.destination.name, lat: fr.destination.latitude, lon: fr.destination.longitude },
+      orig: { iata: fr.origin.iata_code,      icao: fr.origin.icao_code,      city: AIRPORTS[fr.origin.iata_code] || AIRPORTS[fr.origin.icao_code] || fr.origin.municipality      || fr.origin.name },
+      dest: { iata: fr.destination.iata_code, icao: fr.destination.icao_code, city: AIRPORTS[fr.destination.iata_code] || AIRPORTS[fr.destination.icao_code] || fr.destination.municipality || fr.destination.name },
     };
     routeCache[cs] = route;
     return route;
@@ -1154,29 +1123,6 @@ async function selectAircraft(hex) {
     document.getElementById('dp-dest-city').textContent = rt.dest.city || rt.dest.icao || '–';
     document.getElementById('dp-dist-label').textContent = '';
     document.getElementById('dp-route-section').style.display = 'block';
-
-    // Streckenfortschritt berechnen
-    const bar   = document.getElementById('dp-prog-bar');
-    const plane = document.getElementById('dp-prog-plane');
-    const orig  = document.getElementById('dp-prog-orig');
-    const dest  = document.getElementById('dp-prog-dest');
-
-    if (rt.orig.lat != null && rt.orig.lon != null &&
-        rt.dest.lat != null && rt.dest.lon != null &&
-        ac.lat != null && ac.lon != null) {
-      const total  = haversine(rt.orig.lat, rt.orig.lon, rt.dest.lat, rt.dest.lon);
-      const flown  = haversine(rt.orig.lat, rt.orig.lon, ac.lat, ac.lon);
-      const pct    = Math.min(100, Math.max(0, (flown / total) * 100));
-      bar.style.width           = pct.toFixed(1) + '%';
-      plane.style.left          = pct.toFixed(1) + '%';
-      orig.textContent          = rt.orig.iata || '–';
-      dest.textContent          = rt.dest.iata || '–';
-    } else {
-      bar.style.width  = '0%';
-      plane.style.left = '0%';
-      orig.textContent = rt.orig.iata || '–';
-      dest.textContent = rt.dest.iata || '–';
-    }
   }
 
   const rt = routeCache[call];

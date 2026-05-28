@@ -1209,7 +1209,7 @@ function autoSetRadius() {
   } catch {
     h = new Date().getHours();
   }
-  const target = (h >= 20 || h < 6) ? 50 : 25;
+  const target = (h >= 20 || h < 6) ? 35 : 25;
   const input = document.getElementById('radius-input');
   if (input && parseInt(input.value) !== target) input.value = target;
 }

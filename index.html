@@ -1026,8 +1026,7 @@ async function checkFavorites() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         favorites: favorites,
-        active:    activeInAlert,   // Nur Callsigns im Alert-Radius
-        endpoint:  pushSubscription.endpoint
+        active: [...activeCallsigns]
       })
     });
   } catch(e) { /* ignore */ }
@@ -1623,14 +1622,7 @@ document.addEventListener('visibilitychange', () => {
 (async () => {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
-    const reg = await navigator.serviceWorker.register('./sw.js');
-    await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.getSubscription();
-    if (sub) {
-      pushSubscription = sub;
-      updatePushBtn(true);
-      // Subscription bei Server neu registrieren (Railway-Restart) -- Fehler ignorieren
-      fetch(`${PUSH_SERVER}/subscribe`, {
+    const reg = await navigator.serviceWorker.register('./sw.js', {scope: './'});
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(sub)

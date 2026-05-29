@@ -974,24 +974,28 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-let lastPushCheck = 0;
+let lastUpdate = 0;
 
-async function checkFavorites() {
+async function updateServer() {
   renderFavList();
-  if (!favorites.length || !tgChatId) return;
+  if (!tgChatId || !myLat) return;
   const now = Date.now();
-  if (now - lastPushCheck < 30000) return;
-  const alertNm = parseInt(document.getElementById('alert-input').value) || 10;
-  const activeInAlert = Object.values(aircraft)
-    .filter(ac => favorites.includes((ac.flight||'').trim()) && (ac._dst||999) <= alertNm)
-    .map(ac => (ac.flight||'').trim());
-  if (!activeInAlert.length) return;
-  lastPushCheck = now;
+  if (now - lastUpdate < 55000) return; // Max einmal pro Minute
+  lastUpdate = now;
+  const alertNm  = parseInt(document.getElementById('alert-input').value)  || 10;
+  const radiusNm = parseInt(document.getElementById('radius-input').value) || 25;
   try {
-    await fetch(`${PUSH_SERVER}/notify`, {
+    await fetch(`${PUSH_SERVER}/update`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ chat_id: tgChatId, callsigns: activeInAlert })
+      body: JSON.stringify({
+        chat_id:      tgChatId,
+        lat:          myLat,
+        lon:          myLon,
+        radius:       radiusNm,
+        alert_radius: alertNm,
+        favorites:    favorites
+      })
     });
   } catch(e) { /* ignore */ }
 }
@@ -1311,7 +1315,7 @@ async function fetchData() {
 
     // Routen nachladen (Airline-Name kommt dabei automatisch mit)
     fetchAllRoutes();
-    checkFavorites();
+    updateServer();
 
   } catch(e) {
     const msg = e.name === 'TimeoutError' ? 'Timeout' :
@@ -1571,11 +1575,12 @@ setInterval(autoSetRadius, 60 * 1000);
 window.addEventListener('resize', resizeCanvas);
 requestAnimationFrame(() => requestAnimationFrame(resizeCanvas));
 drawRadar();
-getLocation().then(() => { if (myLat) fetchData(); });
+getLocation().then(() => { if (myLat) { fetchData(); updateServer(); } });
 setInterval(() => { if (myLat) fetchData(); }, REFRESH_MS);
+setInterval(() => { if (myLat) updateServer(); }, 60 * 1000);
 setInterval(refreshGpsQuiet, 5 * 60 * 1000);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && myLat) fetchData();
+  if (document.visibilityState === 'visible' && myLat) { fetchData(); updateServer(); }
 });
 </script>
 </body>

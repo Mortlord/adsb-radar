@@ -970,18 +970,26 @@ async function initPush() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
     const reg = await navigator.serviceWorker.register('./sw.js');
+    await navigator.serviceWorker.ready;
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') return;
-    pushSubscription = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-    });
+    // Bestehende Subscription wiederverwenden oder neue erstellen
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    pushSubscription = sub;
+    // Immer neu beim Server registrieren (Railway verliert In-Memory bei Restart)
     await fetch(`${PUSH_SERVER}/subscribe`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(pushSubscription)
+      body: JSON.stringify(sub)
     });
     updatePushBtn(true);
+    console.log('Push aktiv');
   } catch(e) {
     console.warn('Push init failed:', e);
   }

@@ -1623,6 +1623,12 @@ document.addEventListener('visibilitychange', () => {
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   try {
     const reg = await navigator.serviceWorker.register('./sw.js', {scope: './'});
+    await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      pushSubscription = sub;
+      updatePushBtn(true);
+      fetch(`${PUSH_SERVER}/subscribe`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(sub)

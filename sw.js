@@ -16,6 +16,6 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil(
-    clients.openWindow('https://mortlord.github.io/adsb-radar/')
+    clients.openWindow('https://mortlord.github.io/adsb-radar/index.html')
   );
 });

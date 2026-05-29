@@ -1025,8 +1025,9 @@ async function checkFavorites() {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        favorites: favorites,
-        active: [...activeCallsigns]
+        favorites:  favorites,
+        active:     [...activeCallsigns],
+        endpoint:   pushSubscription.endpoint  // Gerät identifizieren
       })
     });
   } catch(e) { /* ignore */ }

@@ -1,11 +1,22 @@
 self.addEventListener('push', event => {
   if (!event.data) return;
-  const data = event.data.json();
+
+  let title = 'ADSB Radar';
+  let body = '';
+
+  try {
+    const data = event.data.json();
+    title = data.title || title;
+    body  = data.body  || '';
+  } catch {
+    // Fallback: plain text
+    body = event.data.text();
+  }
+
   event.waitUntil(
-    self.registration.showNotification(data.title || 'ADSB Radar', {
-      body: data.body || '',
-      icon: '/icon.png',
-      badge: '/icon.png',
+    self.registration.showNotification(title, {
+      body,
+      icon: '/adsb-radar/icon.png',
       tag: 'adsb-alert',
       renotify: true,
       vibrate: [200, 100, 200]

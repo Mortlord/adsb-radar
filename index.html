@@ -444,7 +444,7 @@ body {
   </div>
   <div id="controls">
     <label>Radius: <input type="number" id="radius-input" value="25" min="10" max="500"> nm</label>
-    <label>Alert: <input type="number" id="alert-input" value="10" min="1" max="100"> nm</label>
+    <label>Alert: <input type="number" id="alert-input" value="15" min="1" max="100"> nm</label>
     <button id="refresh-btn" onclick="fetchData()">⟳ Refresh</button>
   </div>
 </div>
@@ -979,7 +979,10 @@ let lastUpdate = 0;
 async function updateServer() {
   renderFavList();
   if (!tgChatId || !myLat) return;
-  const now = Date.now();
+  // Nur zwischen 08:00 und 23:59 Uhr lokaler Zeit
+  const now  = Date.now();
+  const hour = new Date().getHours();
+  if (hour < 8) return;
   if (now - lastUpdate < 55000) return; // Max einmal pro Minute
   lastUpdate = now;
   const alertNm  = parseInt(document.getElementById('alert-input').value)  || 10;

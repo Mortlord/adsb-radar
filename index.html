@@ -101,13 +101,7 @@ body {
   cursor: pointer; font-family: monospace; font-size: 0.75rem;
 }
 #fav-add-btn:hover { background: #1a3a2a; }
-#push-btn {
-  background: #0d1224; border: 1px solid #1e2d55;
-  color: #456; border-radius: 4px; padding: 5px 8px;
-  cursor: pointer; font-family: monospace; font-size: 0.7rem;
-  white-space: nowrap;
-}
-#push-btn:hover { border-color: #4af; }
+#fav-tg-row { display: flex; gap: 6px; margin-top: 6px; }
 #fav-list { display: flex; flex-wrap: wrap; gap: 5px; }
 .fav-tag {
   display: flex; align-items: center; gap: 4px;
@@ -464,7 +458,11 @@ body {
         <div id="fav-input-row">
           <input type="text" id="fav-input" placeholder="Callsign z.B. LH400" maxlength="8">
           <button id="fav-add-btn" onclick="addFav()">＋</button>
-          <button id="push-btn" onclick="togglePush()" title="Push Notifications">🔕 AUS</button>
+        </div>
+        <div id="fav-tg-row">
+          <input type="text" id="tg-chat-id" placeholder="Telegram Chat-ID" style="flex:1;background:#111827;border:1px solid #1e2d55;color:#e0e8ff;padding:5px 8px;border-radius:4px;font-family:monospace;font-size:0.72rem;">
+          <button onclick="saveTgChatId()" style="background:#0d2a1a;border:1px solid #2a6a3a;color:#3f9;border-radius:4px;padding:5px 8px;cursor:pointer;font-family:monospace;font-size:0.72rem;">💾</button>
+          <a href="https://t.me/adsb_radar_bot" target="_blank" style="background:#0d1a2a;border:1px solid #1e2d55;color:#4af;border-radius:4px;padding:5px 8px;font-family:monospace;font-size:0.72rem;text-decoration:none;">✈ Bot</a>
         </div>
         <div id="fav-list"></div>
       </div>
@@ -953,81 +951,47 @@ document.addEventListener('DOMContentLoaded', () => {
   renderFavList();
 });
 
-// Favoriten-Match prüfen (wird nach jedem fetchData aufgerufen)
+// ══════════════════════════════════════════════
+// TELEGRAM NOTIFICATIONS
+// ══════════════════════════════════════════════
 const PUSH_SERVER = 'https://web-production-a6fc8.up.railway.app';
-const VAPID_PUBLIC_KEY = 'BNf4HRbdD_lfu9plUymsLJ6-f-9m4PZX460JrOn9Fs5giBuxVHq1IBiPpk9LnStNgRlROphf9a4eA4wZheXRsXU';
 
-let pushSubscription = null;
+let tgChatId = localStorage.getItem('tg_chat_id') || '';
 
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+function saveTgChatId() {
+  const input = document.getElementById('tg-chat-id');
+  tgChatId = input.value.trim();
+  localStorage.setItem('tg_chat_id', tgChatId);
+  input.style.borderColor = tgChatId ? '#3f9' : '#f66';
 }
 
-async function initPush() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-  try {
-    const reg = await navigator.serviceWorker.register('./sw.js');
-    const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return;
-    pushSubscription = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-    });
-    await fetch(`${PUSH_SERVER}/subscribe`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(pushSubscription)
-    });
-    updatePushBtn(true);
-  } catch(e) {
-    console.warn('Push init failed:', e);
+// Chat-ID beim Start laden
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('tg-chat-id');
+  if (input && tgChatId) {
+    input.value = tgChatId;
+    input.style.borderColor = '#3f9';
   }
-}
+});
 
-async function disablePush() {
-  if (!pushSubscription) return;
-  await fetch(`${PUSH_SERVER}/unsubscribe`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(pushSubscription)
-  });
-  await pushSubscription.unsubscribe();
-  pushSubscription = null;
-  updatePushBtn(false);
-}
-
-function updatePushBtn(active) {
-  const btn = document.getElementById('push-btn');
-  if (!btn) return;
-  btn.textContent = active ? '🔔 AN' : '🔕 AUS';
-  btn.style.color = active ? '#3f9' : '#456';
-}
+let lastPushCheck = 0;
 
 async function checkFavorites() {
-  const activeCallsigns = new Set(
-    Object.values(aircraft)
-      .map(ac => (ac.flight||'').trim())
-      .filter(Boolean)
-  );
   renderFavList();
-  if (!favorites.length || !pushSubscription) return;
-  // Nur Favoriten die im Alert-Radius sind
+  if (!favorites.length || !tgChatId) return;
+  const now = Date.now();
+  if (now - lastPushCheck < 30000) return;
   const alertNm = parseInt(document.getElementById('alert-input').value) || 10;
   const activeInAlert = Object.values(aircraft)
     .filter(ac => favorites.includes((ac.flight||'').trim()) && (ac._dst||999) <= alertNm)
     .map(ac => (ac.flight||'').trim());
   if (!activeInAlert.length) return;
+  lastPushCheck = now;
   try {
-    await fetch(`${PUSH_SERVER}/check`, {
+    await fetch(`${PUSH_SERVER}/notify`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        favorites: favorites,
-        active: [...activeCallsigns]
-      })
+      body: JSON.stringify({ chat_id: tgChatId, callsigns: activeInAlert })
     });
   } catch(e) { /* ignore */ }
 }
@@ -1599,10 +1563,6 @@ async function refreshGpsQuiet() {
   );
 }
 
-function togglePush() {
-  if (pushSubscription) { disablePush(); } else { initPush(); }
-}
-
 // ══════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════
@@ -1617,25 +1577,6 @@ setInterval(refreshGpsQuiet, 5 * 60 * 1000);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && myLat) fetchData();
 });
-
-// Push-Status beim Start wiederherstellen
-(async () => {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-  try {
-    const reg = await navigator.serviceWorker.register('./sw.js', {scope: './'});
-    await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.getSubscription();
-    if (sub) {
-      pushSubscription = sub;
-      updatePushBtn(true);
-      fetch(`${PUSH_SERVER}/subscribe`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(sub)
-      }).catch(() => {});
-    }
-  } catch(e) { console.warn('Push restore failed:', e); }
-})();
 </script>
 </body>
 </html>

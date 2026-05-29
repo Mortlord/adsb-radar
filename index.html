@@ -73,7 +73,46 @@ body {
   }
 }
 
-/* ── List ─────────────────────────────────── */
+/* ── Favoriten ────────────────────────────── */
+#fav-panel {
+  border-bottom: 1px solid #1e2d55;
+  background: #0a0e1a;
+}
+#fav-toggle {
+  width: 100%; padding: 6px 12px;
+  background: none; border: none; border-bottom: 1px solid #1e2d55;
+  color: #4af; font-family: monospace; font-size: 0.65rem;
+  letter-spacing: .8px; cursor: pointer; text-align: left;
+  display: flex; align-items: center; gap: 6px;
+}
+#fav-toggle:hover { background: #0d1224; }
+#fav-body { display: none; padding: 8px 12px; }
+#fav-body.open { display: block; }
+#fav-input-row { display: flex; gap: 6px; margin-bottom: 8px; }
+#fav-input {
+  flex: 1; background: #111827; border: 1px solid #1e2d55;
+  color: #e0e8ff; padding: 5px 8px; border-radius: 4px;
+  font-family: monospace; font-size: 0.75rem; text-transform: uppercase;
+}
+#fav-input:focus { outline: none; border-color: #4af; }
+#fav-add-btn {
+  background: #0d2a1a; border: 1px solid #2a6a3a;
+  color: #3f9; border-radius: 4px; padding: 5px 10px;
+  cursor: pointer; font-family: monospace; font-size: 0.75rem;
+}
+#fav-add-btn:hover { background: #1a3a2a; }
+#fav-list { display: flex; flex-wrap: wrap; gap: 5px; }
+.fav-tag {
+  display: flex; align-items: center; gap: 4px;
+  background: #111827; border: 1px solid #1e2d55;
+  border-radius: 4px; padding: 3px 7px;
+  font-family: monospace; font-size: 0.7rem; color: #fa3;
+}
+.fav-tag.active { border-color: #fa3; background: #1a1500; }
+.fav-tag span { cursor: pointer; color: #456; font-size: 0.65rem; margin-left: 2px; }
+.fav-tag span:hover { color: #f66; }
+
+
 #list-panel {
   flex: 1; display: flex; flex-direction: column;
   overflow: hidden; border-left: 1px solid #1e2d55;
@@ -412,6 +451,16 @@ body {
 <div id="main">
   <div id="radar-panel"><canvas id="radar-canvas"></canvas></div>
   <div id="list-panel">
+    <div id="fav-panel">
+      <button id="fav-toggle" onclick="toggleFavPanel()">⭐ FAVORITEN <span id="fav-count"></span></button>
+      <div id="fav-body">
+        <div id="fav-input-row">
+          <input type="text" id="fav-input" placeholder="Callsign z.B. LH400" maxlength="8">
+          <button id="fav-add-btn" onclick="addFav()">＋</button>
+        </div>
+        <div id="fav-list"></div>
+      </div>
+    </div>
     <div id="list-header">
       <span>CALLSIGN</span>
       <span class="col-airline">AIRLINE</span>
@@ -684,7 +733,7 @@ const AIRLINES = {
   THS:"TransBrasil Airlines", THT:"Air Tahiti Nui", THY:"Turkish Airlines", TIB:"TRIP Linhas A", TIL:"Tajikistan International Airlines",
   TJA:"T.J. Air", TJT:"Twin Jet", TKS:"Tomsk-Avia", TLA:"Translift Airways", TMA:"Trans Mediterranean Airlines",
   TNA:"TransAsia Airways", TNM:"Tiara Air", TNS:"Transilvania", TNU:"TransNusa Air", TOK:"Airlines PNG",
-  TOM:"Thomsonfly", TOS:"Tropic Air", TPA:"TAMPA", TRA:"Transavia Holland", TRK:"Turkuaz Airlines",
+  TOM:"TUI Airways", TOS:"Tropic Air", TPA:"TAMPA", TRA:"Transavia Holland", TRK:"Turkuaz Airlines",
   TRS:"AirTran Airways", TSC:"Air Transat", TSO:"Transaero Airlines", TTZ:"Transair", TUA:"Turkmenistan Airlines",
   TUI:"Tuninter", TUR:"ATUR", TUS:"ABSA - Aerolinhas Brasileiras", TVF:"Transavia France", TVJ:"Thai Vietjet Air",
   TVS:"Travel Service", TWB:"Tway Airlines", TWD:"Turkish Wings Domestic", TWN:"Avialeasing Aviation Company", TXW:"Texas Wings",
@@ -845,8 +894,65 @@ let myTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone; // Fallback: 
 const REFRESH_MS = 60000;
 
 // ══════════════════════════════════════════════
-// LOOKUP HELPERS
+// FAVORITEN
 // ══════════════════════════════════════════════
+let favorites = JSON.parse(localStorage.getItem('adsb_favorites') || '[]');
+
+function saveFavorites() {
+  localStorage.setItem('adsb_favorites', JSON.stringify(favorites));
+}
+
+function renderFavList() {
+  const list = document.getElementById('fav-list');
+  const count = document.getElementById('fav-count');
+  const activeCallsigns = new Set(Object.values(aircraft).map(ac => (ac.flight||'').trim()));
+  count.textContent = favorites.length ? `(${favorites.length})` : '';
+  list.innerHTML = favorites.map(cs => {
+    const isActive = activeCallsigns.has(cs);
+    return `<div class="fav-tag${isActive ? ' active' : ''}">
+      ${isActive ? '✈ ' : ''}${cs}
+      <span onclick="removeFav('${cs}')">✕</span>
+    </div>`;
+  }).join('');
+}
+
+function addFav() {
+  const input = document.getElementById('fav-input');
+  const cs = input.value.trim().toUpperCase();
+  if (!cs || favorites.includes(cs)) { input.value = ''; return; }
+  favorites.push(cs);
+  saveFavorites();
+  renderFavList();
+  input.value = '';
+}
+
+function removeFav(cs) {
+  favorites = favorites.filter(f => f !== cs);
+  saveFavorites();
+  renderFavList();
+}
+
+function toggleFavPanel() {
+  const body = document.getElementById('fav-body');
+  body.classList.toggle('open');
+}
+
+// Enter-Taste im Input
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('fav-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addFav();
+  });
+  renderFavList();
+});
+
+// Favoriten-Match prüfen (wird nach jedem fetchData aufgerufen)
+function checkFavorites() {
+  const activeCallsigns = new Set(Object.values(aircraft).map(ac => (ac.flight||'').trim()));
+  renderFavList();
+  // Später: Push-Notification wenn Favorit im Alert-Radius
+}
+
+
 
 function getAirline(callsign, reg) {
   if (!callsign) return '';
@@ -1161,6 +1267,7 @@ async function fetchData() {
 
     // Routen nachladen (Airline-Name kommt dabei automatisch mit)
     fetchAllRoutes();
+    checkFavorites();
 
   } catch(e) {
     const msg = e.name === 'TimeoutError' ? 'Timeout' :

@@ -444,7 +444,7 @@ body {
   </div>
   <div id="controls">
     <label>Radius: <input type="number" id="radius-input" value="25" min="10" max="500"> nm</label>
-    <label>Alert: <input type="number" id="alert-input" value="15" min="1" max="100"> nm</label>
+    <label>Alert: <input type="number" id="alert-input" value="20" min="1" max="100"> nm</label>
     <button id="refresh-btn" onclick="fetchData()">⟳ Refresh</button>
   </div>
 </div>
@@ -985,7 +985,7 @@ async function updateServer() {
   if (hour < 8) return;
   if (now - lastUpdate < 55000) return; // Max einmal pro Minute
   lastUpdate = now;
-  const alertNm  = parseInt(document.getElementById('alert-input').value)  || 10;
+  const alertNm  = parseInt(document.getElementById('alert-input').value)  || 20;
   const radiusNm = parseInt(document.getElementById('radius-input').value) || 25;
   try {
     await fetch(`${PUSH_SERVER}/update`, {
@@ -1103,7 +1103,7 @@ function drawRadar() {
   ctx.fillText('W',cx-R+2,cy+4); ctx.textAlign='center';
 
   // alert ring
-  const alertNm = parseInt(document.getElementById('alert-input').value) || 15;
+  const alertNm = parseInt(document.getElementById('alert-input').value) || 20;
   const ar = R*(alertNm/radiusNm);
   if (ar<=R) {
     ctx.beginPath(); ctx.arc(cx,cy,ar,0,Math.PI*2);
@@ -1282,7 +1282,7 @@ async function fetchData() {
     }
     if (!resp.ok) throw new Error(`HTTP ${resp.status} (proxy)`);
     const data = await resp.json();
-    const alertNm = parseInt(document.getElementById('alert-input').value)||15;
+    const alertNm = parseInt(document.getElementById('alert-input').value)||20;
     const prevHexes = new Set(knownHexes);
     const fresh = {};
 
@@ -1338,7 +1338,7 @@ async function fetchData() {
 // ══════════════════════════════════════════════
 function renderList() {
   const radiusNm = parseInt(document.getElementById('radius-input').value)||25;
-  const alertNm  = parseInt(document.getElementById('alert-input').value)||15;
+  const alertNm  = parseInt(document.getElementById('alert-input').value)||20;
   const acArr = Object.values(aircraft)
     .filter(ac => ac.lat!=null||ac.dst!=null)
     .map(ac => { ac._dst = ac.dst??(ac.lat!=null?haversine(myLat,myLon,ac.lat,ac.lon):9999); return ac; })
@@ -1391,7 +1391,7 @@ async function selectAircraft(hex) {
 
   // Badges
   const badges = document.getElementById('dp-badges');
-  const alertNm = parseInt(document.getElementById('alert-input').value)||15;
+  const alertNm = parseInt(document.getElementById('alert-input').value)||20;
   badges.innerHTML = `
     ${ac.t?`<span class="badge badge-type">${ac.t}</span>`:''}
     ${ac._dst<=alertNm?'<span class="badge badge-alert">⚠ ALERT ZONE</span>':''}

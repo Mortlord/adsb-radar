@@ -1,8 +1,8 @@
-# ✈ ADSB Radar
+# ✈ ADS-B Radar
 
 Live ADS-B Flugzeug-Radar im Browser – GPS-basiert, überall nutzbar.
 
-👉 [Radar öffnen](https://mortlord.github.io/adsb-radar/)
+👉 [Radar öffnen](https://adsb-radar.de)
 
 ---
 
@@ -45,8 +45,6 @@ Die App benötigt Zugriff auf den GPS-Standort des Geräts. Wird der Zugriff ver
 
 ---
 
-## GitHub Pages einrichten
+## Impressum & Datenschutz
 
-1. Dieses Repo forken oder klonen
-2. **Settings → Pages → Source:** Deploy from branch → `main` / `/(root)`
-3. Nach ~1 Minute erreichbar unter `https://USERNAME.github.io/adsb-radar/`
+[adsb-radar.de/legal.html](https://adsb-radar.de/legal.html)

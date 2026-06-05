@@ -1417,7 +1417,12 @@ function renderList() {
   const cLon = dataSource==='feeder' ? FEEDER_LON : myLon;
   const acArr = Object.values(aircraft)
     .filter(ac => ac.lat!=null||ac.dst!=null)
-    .map(ac => { ac._dst = ac.dst??(ac.lat!=null?haversine(cLat,cLon,ac.lat,ac.lon):9999); return ac; })
+    .map(ac => {
+        // Im Feeder-Modus: ac.dst ignorieren (kommt von airplanes.live), neu berechnen
+        const rawDst = dataSource==='feeder' ? null : ac.dst;
+        ac._dst = rawDst ?? (ac.lat!=null ? haversine(cLat,cLon,ac.lat,ac.lon) : 9999);
+        return ac;
+      })
     .filter(ac => dataSource==='feeder' ? true : ac._dst <= radiusNm)
     .sort((a,b) => a._dst-b._dst);
 

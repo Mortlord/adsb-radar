@@ -445,6 +445,7 @@ body {
   <div id="controls">
     <label>Radius: <input type="number" id="radius-input" value="25" min="10" max="500"> nm</label>
     <label>Alert: <input type="number" id="alert-input" value="20" min="1" max="100"> nm</label>
+    <button id="source-btn" onclick="toggleSource()" title="Datenquelle umschalten" style="opacity:0.4;cursor:not-allowed;" disabled>📡 Mein Feeder</button>
     <button id="refresh-btn" onclick="fetchData()">⟳ Refresh</button>
   </div>
 </div>
@@ -523,7 +524,7 @@ body {
 
 <div id="toast-container"></div>
 <div id="footer">
-  <span>Daten: airplanes.live · Routen: adsbdb.com · github.io/adsb-radar</span>
+  <span id="source-label">Daten: airplanes.live · Routen: adsbdb.com</span>
   <span id="footer-pos">Pos: –</span>
 </div>
 <div id="spinner">⟳ Lade…</div>
@@ -955,6 +956,12 @@ document.addEventListener('DOMContentLoaded', () => {
 // TELEGRAM NOTIFICATIONS
 // ══════════════════════════════════════════════
 const PUSH_SERVER = 'https://web-production-a6fc8.up.railway.app';
+const FEEDER_URL  = 'https://feeder.adsb-radar.de/data/aircraft.json';
+const FEEDER_LAT  = 47.9990;  // Koordinaten deines Pi-Standorts
+const FEEDER_LON  = 7.8421;
+
+let dataSource    = 'live';   // 'live' | 'feeder'
+let feederOnline  = false;    // wird beim Start geprüft
 
 let tgChatId = localStorage.getItem('tg_chat_id') || '';
 
@@ -1114,9 +1121,11 @@ function drawRadar() {
   // aircraft
   Object.values(aircraft).forEach(ac => {
     if (ac.lat==null||myLat==null) return;
-    const dst = ac.dst ?? haversine(myLat,myLon,ac.lat,ac.lon);
+    const cLat = dataSource==='feeder' ? FEEDER_LAT : myLat;
+    const cLon = dataSource==='feeder' ? FEEDER_LON : myLon;
+    const dst = ac.dst ?? haversine(cLat,cLon,ac.lat,ac.lon);
     if (dst > radiusNm) return;
-    const brg = bearingTo(myLat,myLon,ac.lat,ac.lon);
+    const brg = bearingTo(cLat,cLon,ac.lat,ac.lon);
     const frac = dst/radiusNm;
     const rad = (brg-90)*Math.PI/180;
     const x = cx+R*frac*Math.cos(rad), y = cy+R*frac*Math.sin(rad);
@@ -1259,6 +1268,60 @@ async function fetchAllOperators() {
 // ══════════════════════════════════════════════
 // MAIN FETCH
 // ══════════════════════════════════════════════
+async function checkFeederStatus() {
+  try {
+    const r = await fetch(FEEDER_URL, { signal: AbortSignal.timeout(5000) });
+    feederOnline = r.ok;
+  } catch {
+    feederOnline = false;
+  }
+  const btn = document.getElementById('source-btn');
+  if (feederOnline) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+  } else {
+    btn.disabled = true;
+    btn.style.opacity = '0.4';
+    btn.style.cursor = 'not-allowed';
+    if (dataSource === 'feeder') {
+      dataSource = 'live';
+      updateSourceBtn();
+    }
+  }
+}
+
+function updateSourceBtn() {
+  const btn = document.getElementById('source-btn');
+  const lbl = document.getElementById('source-label');
+  if (dataSource === 'feeder') {
+    btn.textContent = '🌍 Live-Feed';
+    btn.style.background = '#0d2a1a';
+    btn.style.borderColor = '#2a6a3a';
+    btn.style.color = '#3f9';
+    if (lbl) lbl.textContent = 'Daten: Mein Feeder (feeder.adsb-radar.de) · Routen: adsbdb.com';
+  } else {
+    btn.textContent = '📡 Mein Feeder';
+    btn.style.background = '';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+    if (lbl) lbl.textContent = 'Daten: airplanes.live · Routen: adsbdb.com';
+  }
+}
+
+function toggleSource() {
+  if (!feederOnline) return;
+  dataSource = dataSource === 'live' ? 'feeder' : 'live';
+  updateSourceBtn();
+  // Karte zentrieren
+  if (dataSource === 'feeder') {
+    showToast('📡 Feeder-Modus: Karte auf Freiburg zentriert');
+  } else {
+    showToast('🌍 Live-Feed: Karte auf deinen Standort');
+  }
+  fetchData();
+}
+
 async function fetchData() {
   if (isFetching) return;          // Parallele Aufrufe verhindern
   if (!myLat) { await getLocation(); if (!myLat) return; }
@@ -1269,24 +1332,35 @@ async function fetchData() {
   const radius = parseInt(document.getElementById('radius-input').value)||25;
 
   try {
+    let resp;
+    if (dataSource === 'feeder') {
+      // Feeder-Modus: eigener Pi, fester Standort
+      resp = await fetch(FEEDER_URL, { signal: AbortSignal.timeout(10000) });
+      if (!resp.ok) throw new Error('feeder ' + resp.status);
+    } else {
     // airplanes.live hat native CORS-Unterstützung → kein Proxy nötig, kein Caching-Problem
     // Fallback auf corsproxy.io falls direkt blockiert
     const directUrl = `https://api.airplanes.live/v2/point/${myLat.toFixed(4)}/${myLon.toFixed(4)}/${radius}`;
     const proxyUrl  = `https://corsproxy.io/?${encodeURIComponent(directUrl)}`;
-    let resp;
     try {
       resp = await fetch(directUrl, { signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error('direct ' + resp.status);
     } catch {
       resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
     }
+    }
     if (!resp.ok) throw new Error(`HTTP ${resp.status} (proxy)`);
     const data = await resp.json();
+    // Feeder liefert data.aircraft[], airplanes.live liefert data.ac[]
+    const acList = data.ac || data.aircraft || [];
+    // Im Feeder-Modus: Radar auf Pi-Standort zentrieren
+    const radarLat = dataSource === 'feeder' ? FEEDER_LAT : myLat;
+    const radarLon = dataSource === 'feeder' ? FEEDER_LON : myLon;
     const alertNm = parseInt(document.getElementById('alert-input').value)||20;
     const prevHexes = new Set(knownHexes);
     const fresh = {};
 
-    (data.ac||[]).forEach(ac => {
+    acList.forEach(ac => {
       fresh[ac.hex] = ac;
       // Besuch zählen: Flugzeug war weder im letzten Fetch noch beim letzten bekannten
       // Radius-Zustand (aus localStorage, max. 10 Min. alt) im Radius
@@ -1580,6 +1654,9 @@ requestAnimationFrame(() => requestAnimationFrame(resizeCanvas));
 drawRadar();
 getLocation().then(() => { if (myLat) { fetchData(); updateServer(); } });
 setInterval(() => { if (myLat) fetchData(); }, REFRESH_MS);
+// Feeder-Status beim Start und alle 30s prüfen
+checkFeederStatus();
+setInterval(checkFeederStatus, 30000);
 setInterval(() => { if (myLat) updateServer(); }, 60 * 1000);
 setInterval(refreshGpsQuiet, 5 * 60 * 1000);
 document.addEventListener('visibilitychange', () => {

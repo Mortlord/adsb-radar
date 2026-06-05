@@ -1413,10 +1413,12 @@ async function fetchData() {
 function renderList() {
   const radiusNm = parseInt(document.getElementById('radius-input').value)||25;
   const alertNm  = parseInt(document.getElementById('alert-input').value)||20;
+  const cLat = dataSource==='feeder' ? FEEDER_LAT : myLat;
+  const cLon = dataSource==='feeder' ? FEEDER_LON : myLon;
   const acArr = Object.values(aircraft)
     .filter(ac => ac.lat!=null||ac.dst!=null)
-    .map(ac => { ac._dst = ac.dst??(ac.lat!=null?haversine(myLat,myLon,ac.lat,ac.lon):9999); return ac; })
-    .filter(ac => ac._dst <= radiusNm)
+    .map(ac => { ac._dst = ac.dst??(ac.lat!=null?haversine(cLat,cLon,ac.lat,ac.lon):9999); return ac; })
+    .filter(ac => dataSource==='feeder' ? true : ac._dst <= radiusNm)
     .sort((a,b) => a._dst-b._dst);
 
   const scroll = document.getElementById('list-scroll');

@@ -1152,11 +1152,83 @@ function drawRadar() {
     ctx.globalAlpha=1;
   });
 
+  // Range Hull (nur im Feeder-Modus)
+  if (dataSource === 'feeder') {
+    drawRangeHull(cx, cy, R, radiusNm);
+  }
+
   // me
   ctx.beginPath(); ctx.arc(cx,cy,5,0,Math.PI*2);
   ctx.fillStyle='#4af'; ctx.fill();
   ctx.beginPath(); ctx.arc(cx,cy,9,0,Math.PI*2);
   ctx.strokeStyle='rgba(68,170,255,.35)'; ctx.lineWidth=1.5; ctx.stroke();
+}
+
+// ══════════════════════════════════════════════
+// RANGE HULL
+// ══════════════════════════════════════════════
+function drawRangeHull(cx, cy, R, radiusNm) {
+  const SECTORS = 72; // 5° Schritte → 360°/72
+  const maxDst  = new Array(SECTORS).fill(0);
+
+  // Für jeden Sektor: maximale Empfangsdistanz ermitteln
+  Object.values(aircraft).forEach(ac => {
+    if (ac.lat == null) return;
+    const dst = haversine(FEEDER_LAT, FEEDER_LON, ac.lat, ac.lon);
+    if (dst > radiusNm * 1.1) return; // außerhalb ignorieren
+    const brg = bearingTo(FEEDER_LAT, FEEDER_LON, ac.lat, ac.lon);
+    const sector = Math.floor(((brg % 360) + 360) % 360 / (360 / SECTORS));
+    if (dst > maxDst[sector]) maxDst[sector] = dst;
+  });
+
+  // Lücken füllen: Sektoren ohne Daten interpolieren
+  // Erst prüfen ob überhaupt genug Daten da sind
+  const filled = maxDst.filter(d => d > 0).length;
+  if (filled < 6) return; // Zu wenig Daten → kein Hull
+
+  // Glättung: Lücken mit Nachbarn interpolieren
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < SECTORS; i++) {
+      if (maxDst[i] === 0) {
+        const prev = maxDst[(i - 1 + SECTORS) % SECTORS];
+        const next = maxDst[(i + 1) % SECTORS];
+        if (prev > 0 && next > 0) maxDst[i] = (prev + next) / 2;
+        else if (prev > 0) maxDst[i] = prev * 0.85;
+        else if (next > 0) maxDst[i] = next * 0.85;
+      }
+    }
+  }
+
+  // Polygon zeichnen
+  ctx.beginPath();
+  for (let i = 0; i <= SECTORS; i++) {
+    const s = i % SECTORS;
+    const angleDeg = s * (360 / SECTORS) - 90; // -90 weil N oben
+    const angleRad = angleDeg * Math.PI / 180;
+    const dist = maxDst[s] || 0;
+    const frac = Math.min(dist / radiusNm, 1);
+    const x = cx + R * frac * Math.cos(angleRad);
+    const y = cy + R * frac * Math.sin(angleRad);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+
+  // Füllung
+  ctx.fillStyle = 'rgba(0, 212, 255, 0.06)';
+  ctx.fill();
+  // Kontur
+  ctx.strokeStyle = 'rgba(0, 212, 255, 0.35)';
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([4, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Label
+  ctx.fillStyle = 'rgba(0, 212, 255, 0.6)';
+  ctx.font = '8px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('EMPFANGSBEREICH', cx, cy - R + 22);
 }
 
 // ══════════════════════════════════════════════

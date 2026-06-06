@@ -1558,18 +1558,11 @@ function setGpsStatus(color, text) {
 // GPS-TIMEZONE (lokale Uhrzeit am Standort)
 // ══════════════════════════════════════════════
 async function fetchTimezone(lat, lon) {
+  // Browser-eigene Zeitzone via Intl API — kein externer API-Call, kein CORS-Problem
   try {
-    const r = await fetch(
-      `https://timezonefinder.michelfe.it/api/0?lat=${lat}&lng=${lon}`,
-      { signal: AbortSignal.timeout(5000) }
-    );
-    const d = await r.json();
-    if (d?.timezone_id) {
-      myTimezone = d.timezone_id;
-      // Radius sofort mit richtiger Ortszeit neu setzen
-      autoSetRadius();
-    }
-  } catch { /* Gerätezeitzone bleibt als Fallback */ }
+    myTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    autoSetRadius();
+  } catch { /* Fallback bleibt */ }
 }
 
 // ══════════════════════════════════════════════

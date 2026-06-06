@@ -986,12 +986,8 @@ let lastUpdate = 0;
 async function updateServer() {
   renderFavList();
   if (!tgChatId || !myLat) return;
-  // Nur zwischen 08:00 und 23:59 Uhr lokaler Zeit
-  const now  = Date.now();
-  const hour = new Date().getHours();
-  if (hour < 8) return;
-  if (now - lastUpdate < 55000) return; // Max einmal pro Minute
-  lastUpdate = now;
+  if (Date.now() - lastUpdate < 55000) return; // Max einmal pro Minute
+  lastUpdate = Date.now();
   const alertNm  = parseInt(document.getElementById('alert-input').value)  || 20;
   const radiusNm = parseInt(document.getElementById('radius-input').value) || 25;
   try {
@@ -1004,7 +1000,8 @@ async function updateServer() {
         lon:          myLon,
         radius:       radiusNm,
         alert_radius: alertNm,
-        favorites:    favorites
+        favorites:    favorites,
+        timezone:     Intl.DateTimeFormat().resolvedOptions().timeZone
       })
     });
   } catch(e) { /* ignore */ }

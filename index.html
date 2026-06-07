@@ -36,7 +36,7 @@ body {
 .dot.yellow { background: #fa3; }
 .dot.red    { background: #f44; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-#controls { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+#controls { display: flex; gap: 8px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
 #controls label { font-size: 0.7rem; color: #7a9ccc; white-space: nowrap; }
 #controls input[type=number] {
   width: 55px; background: #111827; border: 1px solid #1e2d55;
@@ -445,8 +445,10 @@ body {
   <div id="controls">
     <label>Radius: <input type="number" id="radius-input" value="25" min="10" max="500"> nm</label>
     <label>Alert: <input type="number" id="alert-input" value="20" min="1" max="100"> nm</label>
-    <button id="source-btn" onclick="toggleSource()" title="Datenquelle umschalten" style="opacity:0.4;cursor:not-allowed;" disabled>📡 Mein Feeder</button>
-    <button id="refresh-btn" onclick="fetchData()">⟳ Refresh</button>
+    <div style="display:flex;gap:8px;margin-left:auto;">
+      <button id="source-btn" onclick="toggleSource()" title="Datenquelle umschalten" style="opacity:0.4;cursor:not-allowed;" disabled>📡 Mein Feeder</button>
+      <button id="refresh-btn" onclick="fetchData()">⟳ Refresh</button>
+    </div>
   </div>
 </div>
 

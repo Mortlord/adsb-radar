@@ -747,6 +747,13 @@ async function init() {
     if (e.key === 'Enter') addFav();
   });
   renderFavList();
+
+  // Telegram Chat-ID laden
+  const input = document.getElementById('tg-chat-id');
+  if (input && tgChatId) {
+    input.value = tgChatId;
+    input.style.borderColor = '#3f9';
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -767,16 +774,6 @@ function saveTgChatId() {
   tgChatId = input.value.trim();
   localStorage.setItem('tg_chat_id', tgChatId);
   input.style.borderColor = tgChatId ? '#3f9' : '#f66';
-}
-
-// Chat-ID beim Start laden
-  // Telegram Chat-ID laden
-  const input = document.getElementById('tg-chat-id');
-  if (input && tgChatId) {
-    input.value = tgChatId;
-    input.style.borderColor = '#3f9';
-  }
-
 }
 
 document.addEventListener('DOMContentLoaded', () => init());

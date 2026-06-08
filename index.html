@@ -1388,18 +1388,6 @@ async function fetchTimezone(lat, lon) {
 }
 
 // ══════════════════════════════════════════════
-// RADIUS NACH ORTSZEIT (GPS-Standort)
-// ══════════════════════════════════════════════
-).format(new Date()));
-  } catch {
-    h = new Date().getHours();
-  }
-  const target = (h >= 22 || h < 6) ? 35 : 25;
-  const input = document.getElementById('radius-input');
-  if (input && parseInt(input.value) !== target) input.value = target;
-}
-
-// ══════════════════════════════════════════════
 // STANDORTERMITTLUNG
 // ══════════════════════════════════════════════
 async function getLocation() {

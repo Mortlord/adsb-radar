@@ -48,6 +48,12 @@ body {
   padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem;
 }
 #refresh-btn:hover { background: #2a3a6a; }
+#reset-btn {
+  background: #1a2a4a; border: 1px solid #2a4a8a; color: #7a9ccc;
+  padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;
+}
+#reset-btn:hover { background: #2a3a6a; color: #4af; }
+.refresh-icon { display: none; }
 #refresh-btn:disabled { opacity:.5; cursor: not-allowed; }
 
 /* ── Main Layout ──────────────────────────── */
@@ -325,9 +331,11 @@ body {
     font-size: 0.72rem;
   }
   #refresh-btn {
-    padding: 4px 10px;
-    font-size: 0.72rem;
+    padding: 4px 8px;
+    font-size: 0.85rem;
   }
+  .refresh-label { display: none; }
+  .refresh-icon { display: inline; }
 
   /* ── Hauptlayout: vertikal stapeln ──────── */
   #main {
@@ -443,11 +451,12 @@ body {
     <span id="last-update">–</span>
   </div>
   <div id="controls">
-    <label>Radius: <input type="number" id="radius-input" value="25" min="10" max="500"> nm</label>
+    <label>Radius: <input type="number" id="radius-input" value="40" min="10" max="500"> nm</label>
     <label>Alert: <input type="number" id="alert-input" value="20" min="1" max="100"> nm</label>
     <div style="display:flex;gap:8px;margin-left:auto;">
       <button id="source-btn" onclick="toggleSource()" title="Datenquelle umschalten" style="opacity:0.4;cursor:not-allowed;" disabled>📡 Mein Feeder</button>
-      <button id="refresh-btn" onclick="fetchData()">⟳ Refresh</button>
+      <button id="reset-btn" onclick="resetRadius()" title="Radius zurücksetzen">↺</button>
+      <button id="refresh-btn" onclick="fetchData()"><span class="refresh-label">⟳ Refresh</span><span class="refresh-icon">⟳</span></button>
     </div>
   </div>
 </div>
@@ -739,6 +748,15 @@ function toggleFavPanel() {
 
 // Enter-Taste im Input
 async function init() {
+  // Gespeicherten Radius laden
+  const savedRadius = localStorage.getItem('userRadius');
+  if (savedRadius) document.getElementById('radius-input').value = savedRadius;
+
+  // Radius-Änderungen speichern
+  document.getElementById('radius-input').addEventListener('change', () => {
+    localStorage.setItem('userRadius', document.getElementById('radius-input').value);
+  });
+
   // Airlines vom Server laden (single source of truth)
   try {
     const r = await fetch('https://web-production-a6fc8.up.railway.app/airlines');
@@ -788,7 +806,7 @@ async function updateServer() {
   if (Date.now() - lastUpdate < 55000) return; // Max einmal pro Minute
   lastUpdate = Date.now();
   const alertNm  = parseInt(document.getElementById('alert-input').value)  || 20;
-  const radiusNm = parseInt(document.getElementById('radius-input').value) || 25;
+  const radiusNm = parseInt(document.getElementById('radius-input').value) || 40;
   try {
     await fetch(`${PUSH_SERVER}/update`, {
       method: 'POST',
@@ -874,7 +892,7 @@ function fmtAltFull(alt) {
 function drawRadar() {
   const W = canvas.width, H = canvas.height;
   const cx = W/2, cy = H/2, R = Math.min(cx,cy) - 4;
-  const radiusNm = parseInt(document.getElementById('radius-input').value) || 25;
+  const radiusNm = parseInt(document.getElementById('radius-input').value) || 40;
 
   ctx.clearRect(0, 0, W, H);
   ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2);
@@ -1118,6 +1136,12 @@ function toggleSource() {
   fetchData();
 }
 
+function resetRadius() {
+  document.getElementById('radius-input').value = 40;
+  localStorage.setItem('userRadius', '40');
+  fetchData();
+}
+
 async function fetchData() {
   if (isFetching) return;          // Parallele Aufrufe verhindern
   if (!myLat) { await getLocation(); if (!myLat) return; }
@@ -1125,7 +1149,7 @@ async function fetchData() {
   const btn = document.getElementById('refresh-btn');
   btn.disabled = true;
   document.getElementById('spinner').classList.add('visible');
-  const radius = parseInt(document.getElementById('radius-input').value)||25;
+  const radius = parseInt(document.getElementById('radius-input').value)||40;
 
   try {
     let resp;
@@ -1207,7 +1231,7 @@ async function fetchData() {
 // RENDER LIST
 // ══════════════════════════════════════════════
 function renderList() {
-  const radiusNm = parseInt(document.getElementById('radius-input').value)||25;
+  const radiusNm = parseInt(document.getElementById('radius-input').value)||40;
   const alertNm  = parseInt(document.getElementById('alert-input').value)||20;
   const cLat = dataSource==='feeder' ? FEEDER_LAT : myLat;
   const cLon = dataSource==='feeder' ? FEEDER_LON : myLon;
@@ -1360,21 +1384,13 @@ async function fetchTimezone(lat, lon) {
   // Browser-eigene Zeitzone via Intl API — kein externer API-Call, kein CORS-Problem
   try {
     myTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    autoSetRadius();
   } catch { /* Fallback bleibt */ }
 }
 
 // ══════════════════════════════════════════════
 // RADIUS NACH ORTSZEIT (GPS-Standort)
 // ══════════════════════════════════════════════
-function autoSetRadius() {
-  let h;
-  try {
-    h = parseInt(new Intl.DateTimeFormat('en-US', {
-      timeZone: myTimezone,
-      hour: 'numeric',
-      hour12: false
-    }).format(new Date()));
+).format(new Date()));
   } catch {
     h = new Date().getHours();
   }
@@ -1444,8 +1460,6 @@ async function refreshGpsQuiet() {
 // ══════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════
-autoSetRadius();
-setInterval(autoSetRadius, 60 * 1000);
 window.addEventListener('resize', resizeCanvas);
 requestAnimationFrame(() => requestAnimationFrame(resizeCanvas));
 drawRadar();

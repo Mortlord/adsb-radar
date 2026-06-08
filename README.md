@@ -8,7 +8,7 @@ Live ADS-B Flugzeug-Radar im Browser – GPS-basiert, überall nutzbar.
 
 ## Features
 
-- **Live-Radar** – alle Flugzeuge im einstellbaren Radius (10–500 nm)
+- **Live-Radar** – alle Flugzeuge im einstellbaren Radius (10–250 nm)
 - **GPS-Standort** – automatisch über den Browser ermittelt
 - **FR24-Style Detailansicht** – Airline, Flugzeugtyp, Callsign, Registration
 - **Origin → Destination** – Routendaten via adsbdb

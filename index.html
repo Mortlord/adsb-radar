@@ -750,11 +750,16 @@ function toggleFavPanel() {
 async function init() {
   // Gespeicherten Radius laden
   const savedRadius = localStorage.getItem('userRadius');
+  const savedAlert  = localStorage.getItem('userAlert');
   if (savedRadius) document.getElementById('radius-input').value = savedRadius;
+  if (savedAlert)  document.getElementById('alert-input').value  = savedAlert;
 
-  // Radius-Änderungen speichern
+  // Änderungen speichern
   document.getElementById('radius-input').addEventListener('change', () => {
     localStorage.setItem('userRadius', document.getElementById('radius-input').value);
+  });
+  document.getElementById('alert-input').addEventListener('change', () => {
+    localStorage.setItem('userAlert', document.getElementById('alert-input').value);
   });
 
   // Airlines vom Server laden (single source of truth)
@@ -1138,7 +1143,9 @@ function toggleSource() {
 
 function resetRadius() {
   document.getElementById('radius-input').value = 40;
+  document.getElementById('alert-input').value  = 20;
   localStorage.setItem('userRadius', '40');
+  localStorage.setItem('userAlert',  '20');
   fetchData();
 }
 

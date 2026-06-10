@@ -345,7 +345,7 @@ body {
   /* ── Radar oben, kompakt ─────────────────── */
   #radar-panel {
     flex: 0 0 auto;
-    height: min(52vw, 260px);
+    height: min(80vw, 400px);
     padding: 6px;
     width: 100%;
     justify-content: center;
@@ -1216,9 +1216,10 @@ async function fetchData() {
     renderList();
     drawRadar();
     lastFetchTime = Date.now();
-    setApiStatus('green', `${data.total??Object.keys(aircraft).length} Flugzeuge`);
+    const acWord = LANG === 'de' ? 'Flugzeuge' : 'aircraft';
+    setApiStatus('green', `${data.total??Object.keys(aircraft).length} ${acWord}`);
     document.getElementById('last-update').textContent = 'Update: '+new Date().toLocaleTimeString('de-DE');
-    document.getElementById('count-txt').textContent = `${Object.keys(aircraft).length} Flugzeuge`;
+    document.getElementById('count-txt').textContent = `${Object.keys(aircraft).length} ${acWord}`;
 
     if (selectedHex && aircraft[selectedHex]) selectAircraft(selectedHex);
 

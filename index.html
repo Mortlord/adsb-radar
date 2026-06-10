@@ -447,7 +447,6 @@ body {
   <div id="status-bar">
     <span><div class="dot" id="gps-dot"></div><span id="gps-txt">GPS: –</span></span>
     <span><div class="dot" id="api-dot"></div><span id="api-txt">API: –</span></span>
-    <span id="count-txt">0 Flugzeuge</span>
     <span id="last-update">–</span>
   </div>
   <div id="controls">
@@ -1219,7 +1218,7 @@ async function fetchData() {
     const acWord = 'Flugzeuge';
     setApiStatus('green', `${data.total??Object.keys(aircraft).length} ${acWord}`);
     document.getElementById('last-update').textContent = 'Update: '+new Date().toLocaleTimeString('de-DE');
-    document.getElementById('count-txt').textContent = `${Object.keys(aircraft).length} ${acWord}`;
+
 
     if (selectedHex && aircraft[selectedHex]) selectAircraft(selectedHex);
 

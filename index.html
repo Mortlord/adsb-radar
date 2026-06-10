@@ -1216,7 +1216,7 @@ async function fetchData() {
     renderList();
     drawRadar();
     lastFetchTime = Date.now();
-    const acWord = LANG === 'de' ? 'Flugzeuge' : 'aircraft';
+    const acWord = 'Flugzeuge';
     setApiStatus('green', `${data.total??Object.keys(aircraft).length} ${acWord}`);
     document.getElementById('last-update').textContent = 'Update: '+new Date().toLocaleTimeString('de-DE');
     document.getElementById('count-txt').textContent = `${Object.keys(aircraft).length} ${acWord}`;

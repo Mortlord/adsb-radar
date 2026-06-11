@@ -1060,6 +1060,7 @@ async function fetchRoute(callsign) {
       dest: { iata: d.route.dest.iata, icao: d.route.dest.icao || '', city: AIRPORTS[d.route.dest.iata] || d.route.dest.city || '' },
     };
     routeCache[cs] = route;
+    renderList(); // Route sofort anzeigen
     return route;
   } catch { return null; }
 }

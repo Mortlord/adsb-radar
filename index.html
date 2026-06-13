@@ -4,10 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- Content-Security-Policy als zusaetzliche XSS-Verteidigung.
-     Hinweis: frame-ancestors/X-Frame-Options wirken nur als HTTP-Header. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.airplanes.live https://api.adsbdb.com https://api.planespotters.net https://feeder.adsb-radar.de https://web-production-a6fc8.up.railway.app; font-src 'self'; object-src 'none'; base-uri 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'">
-<title>✈ ADSB Radar</title>
-<meta name="description" content="Live ADS-B aircraft radar – powered by adsb.lol">
+     Hinweis: frame-ancestors/X-Frame-Options wirken nur als HTTP-Header,
+     daher idealerweise zusaetzlich auf dem Static-Host setzen. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.airplanes.live https://api.adsbdb.com https://api.planespotters.net https://web-production-a6fc8.up.railway.app; font-src 'self'; object-src 'none'; base-uri 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'">
+<title>✈ ADS-B Radar – Live Flight Tracker</title>
+<meta name="description" content="Free live ADS-B flight radar. Track aircraft near you in real time – no account needed. Favorites & Telegram notifications included.">
+<meta name="theme-color" content="#0a0e1a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<!-- Open Graph -->
+<meta property="og:title" content="✈ ADS-B Radar – Live Flight Tracker">
+<meta property="og:description" content="Free live ADS-B flight radar. Track aircraft near you in real time – no account needed.">
+<meta property="og:url" content="https://adsb-radar.de">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://adsb-radar.de/og-image.png">
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="✈ ADS-B Radar – Live Flight Tracker">
+<meta name="twitter:description" content="Free live ADS-B flight radar. Track aircraft near you in real time.">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -24,22 +38,21 @@ body {
 #header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 8px 16px;
   background: #0d1224;
   border-bottom: 1px solid #1e2d55;
   flex-shrink: 0;
-  gap: 12px;
+  gap: 16px;
 }
-#header h1 { font-size: 1rem; color: #4af; letter-spacing: 2px; white-space: nowrap; }
-#status-bar { display: flex; gap: 14px; font-size: 0.7rem; color: #7a9ccc; flex-wrap: wrap; }
+#header h1 { font-size: 1rem; color: #4af; letter-spacing: 2px; white-space: nowrap; flex-shrink: 0; }
+#status-bar { display: flex; gap: 14px; font-size: 0.7rem; color: #7a9ccc; flex-wrap: wrap; flex: 1; }
 #status-bar span { display: flex; align-items: center; gap: 4px; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: #555; flex-shrink: 0; }
 .dot.green  { background: #3f9; animation: pulse 2s infinite; }
 .dot.yellow { background: #fa3; }
 .dot.red    { background: #f44; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-#controls { display: flex; gap: 8px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
+#controls { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 #controls label { font-size: 0.7rem; color: #7a9ccc; white-space: nowrap; }
 #controls input[type=number] {
   width: 55px; background: #111827; border: 1px solid #1e2d55;
@@ -51,13 +64,13 @@ body {
   padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem;
 }
 #refresh-btn:hover { background: #2a3a6a; }
+#refresh-btn:disabled { opacity:.5; cursor: not-allowed; }
 #reset-btn {
   background: #1a2a4a; border: 1px solid #2a4a8a; color: #7a9ccc;
   padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;
 }
 #reset-btn:hover { background: #2a3a6a; color: #4af; }
 .refresh-icon { display: none; }
-#refresh-btn:disabled { opacity:.5; cursor: not-allowed; }
 
 /* ── Main Layout ──────────────────────────── */
 #main { display: flex; flex: 1; overflow: hidden; }
@@ -77,50 +90,10 @@ body {
 /* ── Desktop Layout (> 600px) ─────────────── */
 @media (min-width: 601px) {
   #radar-panel {
-    flex: 0 0 min(40vw, 560px);
+    flex: 0 0 min(50vw, 720px);
     height: 100%;
   }
 }
-
-/* ── Favoriten ────────────────────────────── */
-#fav-panel {
-  border-bottom: 1px solid #1e2d55;
-  background: #0a0e1a;
-}
-#fav-toggle {
-  width: 100%; padding: 6px 12px;
-  background: none; border: none; border-bottom: 1px solid #1e2d55;
-  color: #4af; font-family: monospace; font-size: 0.65rem;
-  letter-spacing: .8px; cursor: pointer; text-align: left;
-  display: flex; align-items: center; gap: 6px;
-}
-#fav-toggle:hover { background: #0d1224; }
-#fav-body { display: none; padding: 8px 12px; }
-#fav-body.open { display: block; }
-#fav-input-row { display: flex; gap: 6px; margin-bottom: 8px; }
-#fav-input {
-  flex: 1; background: #111827; border: 1px solid #1e2d55;
-  color: #e0e8ff; padding: 5px 8px; border-radius: 4px;
-  font-family: monospace; font-size: 0.75rem; text-transform: uppercase;
-}
-#fav-input:focus { outline: none; border-color: #4af; }
-#fav-add-btn {
-  background: #0d2a1a; border: 1px solid #2a6a3a;
-  color: #3f9; border-radius: 4px; padding: 5px 10px;
-  cursor: pointer; font-family: monospace; font-size: 0.75rem;
-}
-#fav-add-btn:hover { background: #1a3a2a; }
-#fav-tg-row { display: flex; gap: 6px; margin-top: 6px; }
-#fav-list { display: flex; flex-wrap: wrap; gap: 5px; }
-.fav-tag {
-  display: flex; align-items: center; gap: 4px;
-  background: #111827; border: 1px solid #1e2d55;
-  border-radius: 4px; padding: 3px 7px;
-  font-family: monospace; font-size: 0.7rem; color: #fa3;
-}
-.fav-tag.active { border-color: #fa3; background: #1a1500; }
-.fav-tag span { cursor: pointer; color: #456; font-size: 0.65rem; margin-left: 2px; }
-.fav-tag span:hover { color: #f66; }
 
 
 #list-panel {
@@ -131,11 +104,11 @@ body {
   padding: 6px 12px;
   background: #0d1224;
   border-bottom: 1px solid #1e2d55;
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   color: #4af;
   display: grid;
-  grid-template-columns: 1.2fr 1.8fr 1fr 1.3fr 1fr 0.9fr 0.9fr;
-  gap: 4px;
+  grid-template-columns: 1.1fr 1.6fr 0.9fr 1.4fr 0.9fr 0.8fr 0.8fr;
+  gap: 6px;
   letter-spacing: .8px;
 }
 #list-scroll { flex:1; overflow-y:auto; overflow-x:hidden; }
@@ -144,12 +117,12 @@ body {
 #list-scroll::-webkit-scrollbar-thumb { background: #1e2d55; border-radius: 2px; }
 
 .ac-row {
-  padding: 5px 12px;
-  font-size: 0.7rem;
+  padding: 8px 12px;
+  font-size: 0.8rem;
   border-bottom: 1px solid #0f1830;
   display: grid;
-  grid-template-columns: 1.2fr 1.8fr 1fr 1.3fr 1fr 0.9fr 0.9fr;
-  gap: 4px;
+  grid-template-columns: 1.1fr 1.6fr 0.9fr 1.4fr 0.9fr 0.8fr 0.8fr;
+  gap: 6px;
   cursor: pointer;
   transition: background .1s;
   align-items: center;
@@ -161,9 +134,9 @@ body {
 @keyframes rowflash { 0%{background:#1a3a1a} 100%{background:transparent} }
 
 .col-call { color: #4af; font-weight: bold; }
-.col-airline { color: #8af; font-size: 0.64rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-airline { color: #8af; font-size: 0.76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col-type { color: #aac; }
-.col-route { color: #fa3; font-size: 0.67rem; }
+.col-route { color: #fa3; font-size: 0.78rem; }
 .col-alt  { }
 .col-dist { color: #fa3; }
 .col-spd  { color: #8cf; }
@@ -177,7 +150,7 @@ body {
 #detail-panel {
   position: fixed;
   top: 50px; right: 0;
-  width: 320px;
+  width: min(360px, 28vw);
   max-height: calc(100vh - 60px);
   background: #0d1224;
   border: 1px solid #2a4a8a;
@@ -187,8 +160,11 @@ body {
   display: none;
   z-index: 100;
   font-size: 0.75rem;
+  box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
 }
-#detail-panel.visible { display: block; }
+#detail-panel.visible { display: block; transform: translateX(0); }
 #detail-panel::-webkit-scrollbar { width: 3px; }
 #detail-panel::-webkit-scrollbar-thumb { background: #1e2d55; }
 
@@ -309,6 +285,40 @@ body {
 #spinner.visible { display: flex; }
 
 /* ── Location Modal ───────────────────────── */
+/* ── Onboarding Modal ─────────────────────── */
+#onboard-modal {
+  display: flex; position: fixed; inset: 0;
+  background: rgba(5,8,18,0.97);
+  align-items: center; justify-content: center;
+  z-index: 500;
+}
+#onboard-modal.hidden { display: none; }
+#onboard-box {
+  background: #0d1224;
+  border: 1px solid #2a4a8a;
+  border-radius: 12px;
+  padding: 36px 32px;
+  width: min(420px, 92vw);
+  text-align: center;
+  box-shadow: 0 0 60px rgba(0,80,200,.25);
+}
+.onboard-icon { font-size: 2.5rem; margin-bottom: 8px; }
+#onboard-box h2 { color: #4af; font-size: 1.3rem; letter-spacing: 3px; margin-bottom: 8px; }
+.onboard-sub { color: #7a9ccc; font-size: 0.82rem; margin-bottom: 24px; }
+.onboard-features { text-align: left; margin-bottom: 24px; }
+.onboard-feat { color: #c0d4f0; font-size: 0.82rem; padding: 6px 0; border-bottom: 1px solid #1e2d55; }
+.onboard-feat:last-child { border-bottom: none; }
+#onboard-btn {
+  width: 100%; padding: 12px;
+  background: #0d2a1a; border: 1px solid #2a6a3a; color: #3f9;
+  border-radius: 6px; cursor: pointer;
+  font-family: monospace; font-size: 0.9rem;
+  margin-bottom: 12px;
+  transition: background 0.2s;
+}
+#onboard-btn:hover { background: #0f3a22; }
+.onboard-note { color: #456; font-size: 0.68rem; line-height: 1.5; }
+
 #loc-modal {
   display: none; position: fixed; inset: 0;
   background: rgba(5,8,18,.85);
@@ -478,6 +488,52 @@ body {
     grid-template-columns: 62px 52px 48px 40px 34px 30px;
   }
 }
+
+/* ── Favoriten-Panel ─────────────────────────────── */
+#fav-toggle {
+  position: fixed; bottom: 48px; right: 14px; z-index: 200;
+  background: #0d1f3a; border: 1px solid #1e3a5a; color: #4af;
+  font-family: 'Share Tech Mono', monospace; font-size: 0.75rem;
+  padding: 6px 12px; border-radius: 4px; cursor: pointer;
+  letter-spacing: 0.08em;
+}
+#fav-toggle:hover { background: #112a4a; }
+
+#fav-panel {
+  position: fixed; bottom: 80px; right: 14px; z-index: 199;
+  width: 300px; max-height: 70vh; overflow-y: auto;
+  background: #0a0e1a; border: 1px solid #1e3a5a;
+  border-radius: 8px; padding: 14px; display: none;
+  font-family: 'Share Tech Mono', monospace; font-size: 0.78rem;
+}
+#fav-panel.visible { display: block; }
+#fav-panel h3 { color: #4af; margin: 0 0 10px; font-size: 0.82rem; letter-spacing: 0.1em; }
+#fav-panel label { color: #7a9abb; font-size: 0.72rem; display: block; margin-bottom: 3px; }
+#fav-panel input[type=text] {
+  width: 100%; background: #111827; border: 1px solid #1e3a5a;
+  color: #c9d6e3; padding: 5px 8px; border-radius: 4px;
+  font-family: inherit; font-size: 0.78rem; margin-bottom: 8px; box-sizing: border-box;
+}
+#fav-panel input[type=text]:focus { outline: none; border-color: #4af; }
+.fav-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #0d1f3a; border: 1px solid #1e3a5a; color: #c9d6e3;
+  padding: 2px 8px; border-radius: 3px; margin: 2px; font-size: 0.72rem;
+}
+.fav-tag button { background: none; border: none; color: #f66; cursor: pointer; font-size: 0.8rem; padding: 0; line-height: 1; }
+#fav-tags { margin-bottom: 10px; min-height: 24px; }
+.fav-sep { border: none; border-top: 1px solid #1e3a5a; margin: 10px 0; }
+#fav-chat-hint {
+  color: #5a7a9a; font-size: 0.68rem; line-height: 1.5; margin-bottom: 8px;
+}
+#fav-chat-hint a { color: #4af; text-decoration: none; }
+#fav-save-btn {
+  width: 100%; padding: 6px; background: #0d2a1a; border: 1px solid #2a6a3a;
+  color: #3f9; border-radius: 4px; cursor: pointer; font-family: inherit;
+  font-size: 0.75rem; letter-spacing: 0.08em;
+}
+#fav-save-btn:hover { background: #0f3a22; }
+#fav-status { color: #3f9; font-size: 0.68rem; margin-top: 6px; min-height: 16px; }
 </style>
 </head>
 <body>
@@ -490,11 +546,10 @@ body {
     <span id="last-update">–</span>
   </div>
   <div id="controls">
-    <label>Radius: <input type="number" id="radius-input" value="40" min="10" max="250"> nm</label>
-    <label>Alert: <input type="number" id="alert-input" value="20" min="1" max="100"> nm</label>
+    <label data-i18n="radius">Radius: </label><input type="number" id="radius-input" value="40" min="10" max="250"> nm
+    <label data-i18n="alert">Alert: </label><input type="number" id="alert-input" value="20" min="1" max="100"> nm
     <div style="display:flex;gap:8px;margin-left:auto;">
-      <button id="source-btn" onclick="toggleSource()" title="Datenquelle umschalten" style="opacity:0.4;cursor:not-allowed;" disabled>📡 Mein Feeder</button>
-      <button id="reset-btn" onclick="resetRadius()" title="Radius zurücksetzen">↺</button>
+      <button id="reset-btn" onclick="resetRadius()" title="Zurücksetzen">↺</button>
       <button id="refresh-btn" onclick="fetchData()"><span class="refresh-label">⟳ Refresh</span><span class="refresh-icon">⟳</span></button>
     </div>
   </div>
@@ -503,21 +558,6 @@ body {
 <div id="main">
   <div id="radar-panel"><canvas id="radar-canvas"></canvas></div>
   <div id="list-panel">
-    <div id="fav-panel">
-      <button id="fav-toggle" onclick="toggleFavPanel()">⭐ FAVORITEN <span id="fav-count"></span></button>
-      <div id="fav-body">
-        <div id="fav-input-row">
-          <input type="text" id="fav-input" placeholder="Callsign oder Prefix z.B. HVN" maxlength="8">
-          <button id="fav-add-btn" onclick="addFav()">＋</button>
-        </div>
-        <div id="fav-tg-row">
-          <input type="text" id="tg-chat-id" placeholder="Aktivierungscode" autocomplete="off" maxlength="64" style="flex:1;background:#111827;border:1px solid #1e2d55;color:#e0e8ff;padding:5px 8px;border-radius:4px;font-family:monospace;font-size:0.72rem;">
-          <button onclick="saveTgToken()" style="background:#0d2a1a;border:1px solid #2a6a3a;color:#3f9;border-radius:4px;padding:5px 8px;cursor:pointer;font-family:monospace;font-size:0.72rem;">💾</button>
-          <a href="https://t.me/adsb_radar_bot" target="_blank" style="background:#0d1a2a;border:1px solid #1e2d55;color:#4af;border-radius:4px;padding:5px 8px;font-family:monospace;font-size:0.72rem;text-decoration:none;">✈ Bot</a>
-        </div>
-        <div id="fav-list"></div>
-      </div>
-    </div>
     <div id="list-header">
       <span>CALLSIGN</span>
       <span class="col-airline">AIRLINE</span>
@@ -555,7 +595,7 @@ body {
     </div>
   </div>
   <div class="dp-section">
-    <div class="dp-section-title">Flugzeug</div>
+    <div class="dp-section-title" data-i18n="aircraft">Flugzeug</div>
     <div class="dp-grid">
       <div class="dp-field"><label>Type</label><span id="dp-type">–</span></div>
       <div class="dp-field"><label>Registration</label><span id="dp-reg">–</span></div>
@@ -564,27 +604,69 @@ body {
     </div>
   </div>
   <div class="dp-section">
-    <div class="dp-section-title">Flugdaten</div>
+    <div class="dp-section-title" data-i18n="flightdata">Flugdaten</div>
     <div class="dp-grid">
       <div class="dp-field"><label>Altitude</label><span id="dp-alt">–</span></div>
       <div class="dp-field"><label>Speed</label><span id="dp-spd">–</span></div>
       <div class="dp-field"><label>Heading</label><span id="dp-hdg">–</span></div>
       <div class="dp-field"><label>Vert. Rate</label><span id="dp-vrate">–</span></div>
-      <div class="dp-field"><label>Entfernung</label><span id="dp-dist">–</span></div>
+      <div class="dp-field"><label data-i18n="distance">Entfernung</label><span id="dp-dist">–</span></div>
       <div class="dp-field"><label>Signal</label><span id="dp-rssi">–</span></div>
     </div>
   </div>
   </div>
 </div>
 
+
+<button id="fav-toggle" onclick="toggleFavPanel()" data-i18n="fav_toggle">⭐ FAVORITEN</button>
+
+<div id="fav-panel">
+  <h3>⭐ FAVORITEN &nbsp;<a href="help.html" target="_blank" style="font-size:0.7rem;color:#5a7a9a;font-family:Outfit,sans-serif;letter-spacing:0;font-weight:300;" data-i18n="fav_help_link">ℹ Wie funktioniert das?</a></h3>
+  <label data-i18n="fav_add_label">Callsign oder Prefix hinzufügen</label>
+  <input type="text" id="fav-input" placeholder="z.B. LH oder LH400" data-i18n-placeholder="fav_placeholder" maxlength="10"
+    onkeydown="if(event.key==='Enter') addFav()">
+  <button onclick="addFav()" style="width:100%;padding:5px;background:#0d1f3a;border:1px solid #1e3a5a;color:#4af;border-radius:4px;cursor:pointer;font-family:inherit;font-size:0.75rem;margin-bottom:8px;" data-i18n="fav_add_btn">+ Hinzufügen</button>
+  <div id="fav-tags"></div>
+  <hr class="fav-sep">
+  <label data-i18n="fav_chatid_label">Aktivierungscode</label>
+  <div id="fav-chat-hint">
+    1. Schreibe <a href="https://t.me/adsb_radar_bot" target="_blank">@adsb_radar_bot</a> in Telegram<br>
+    2. Sende <b>/start</b> – der Bot antwortet mit deinem Aktivierungscode<br>
+    3. Trage ihn hier ein
+  </div>
+  <input type="text" id="fav-chatid" placeholder="Aktivierungscode" data-i18n-placeholder="fav_chatid_placeholder" maxlength="64" autocomplete="off">
+  <button id="fav-save-btn" onclick="saveFavs()" data-i18n="fav_save">💾 Speichern &amp; Aktivieren</button>
+  <div id="fav-status"></div>
+  <hr class="fav-sep">
+  <button onclick="deleteFavData()" style="width:100%;padding:5px;background:#1a0a0a;border:1px solid #5a1a1a;color:#f66;border-radius:4px;cursor:pointer;font-family:inherit;font-size:0.72rem;margin-top:4px;" data-i18n="fav_delete">🗑 Meine Daten löschen (DSGVO)</button>
+  <p style="color:#3a4a5a;font-size:0.65rem;margin-top:5px;line-height:1.4;">Löscht Standort, Chat-ID und Favoriten vom Server. Lokale Daten bleiben im Browser erhalten.</p>
+</div>
+
 <div id="toast-container"></div>
 <div id="footer">
-  <span id="source-label">Daten: airplanes.live · Routen: adsbdb.com</span>
+  <span><span data-i18n="footer_data">Daten: airplanes.live · Routen: adsbdb.com</span> · <a id="legal-link" href="legal.html" style="color:inherit;opacity:0.7;text-decoration:none;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'" data-i18n="footer_legal">Impressum & Datenschutz</a></span>
   <span id="footer-pos">Pos: –</span>
 </div>
-<div id="spinner">⟳ Lade…</div>
+<div id="spinner" data-i18n="loading">⟳ Lade…</div>
 
 <!-- GPS Fehlermeldung -->
+<div id="onboard-modal">
+  <div id="onboard-box">
+    <div class="onboard-icon">✈</div>
+    <h2>ADS-B RADAR</h2>
+    <p class="onboard-sub">Live flight tracker — free, no account needed</p>
+    <div class="onboard-features">
+      <div class="onboard-feat">📡 Real-time aircraft positions</div>
+      <div class="onboard-feat">⭐ Favorites & Telegram alerts</div>
+      <div class="onboard-feat">🔒 No tracking, no cookies</div>
+    </div>
+    <button id="onboard-btn" onclick="startApp()">
+      📍 Allow location &amp; start
+    </button>
+    <p class="onboard-note">Your location stays on your device and is only used to center the radar.</p>
+  </div>
+</div>
+
 <div id="loc-modal">
   <div id="loc-box">
     <h2>✈ STANDORT ERFORDERLICH</h2>
@@ -596,6 +678,7 @@ body {
 </div>
 
 <script>
+let AIRLINES = {}; // wird beim Start von Railway geladen
 // ══════════════════════════════════════════════
 // POLYFILLS – Kompatibilität älterer mobiler Browser
 // ══════════════════════════════════════════════
@@ -611,8 +694,7 @@ if (typeof AbortSignal.timeout !== 'function') {
 // LOOKUP TABLES
 // ══════════════════════════════════════════════
 
-// ICAO airline callsign prefix → full name (wird beim Start von /airlines geladen)
-let AIRLINES = {};
+// AIRLINES wird beim Start per fetch von Railway geladen (siehe init())
 
 // ICAO aircraft type code → full name
 const AIRCRAFT_TYPES = {
@@ -628,7 +710,7 @@ const AIRCRAFT_TYPES = {
   A388:'Airbus A380-800',
   // Boeing
   B37M:'Boeing 737 MAX 7', B38M:'Boeing 737 MAX 8', B39M:'Boeing 737 MAX 9',
-  B3XM:'Boeing 737 MAX 10', B461:'BAe 146-100', B463:'BAe 146-300',
+  B3XM:'Boeing 737 MAX 10', B461:'BAe 146-100',
   B703:'Boeing 707', B712:'Boeing 717', B721:'Boeing 727-100',
   B722:'Boeing 727-200', B732:'Boeing 737-200', B733:'Boeing 737-300',
   B734:'Boeing 737-400', B735:'Boeing 737-500', B736:'Boeing 737-600',
@@ -662,7 +744,7 @@ const AIRCRAFT_TYPES = {
   C421:'Cessna 421', C441:'Cessna Conquest', C500:'Cessna Citation I',
   C525:'Cessna CitationJet', C550:'Cessna Citation II', C560:'Cessna Citation V',
   C650:'Cessna Citation III', C680:'Cessna Citation Sovereign', C700:'Cessna Citation Longitude',
-  C750:'Cessna Citation X', CL60:'Challenger 600', CL30:'Bombardier Challenger 300',
+  C750:'Cessna Citation X', CL30:'Bombardier Challenger 300',
   CL35:'Bombardier Challenger 350', CL60:'Bombardier Challenger 600',
   DC10:'McDonnell Douglas DC-10', DC85:'Douglas DC-8-50', DC86:'Douglas DC-8-60',
   DC87:'Douglas DC-8-70', DC91:'Douglas DC-9-10', DC93:'Douglas DC-9-30',
@@ -740,13 +822,16 @@ let aircraft = {};
 let knownHexes = new Set();
 let selectedHex = null;
 let routeCache = {};
+// Pro Callsign: Zeitpunkt, ab dem ein erneuter Routen-Versuch erlaubt ist.
+// Verhindert, dass transiente Fehlschlaege (Cooldown, Timeout) dauerhaft als "keine Route" haengen.
+let routeRetry = {};
 let operatorCache = {};
 let isFetching = false;
 let myTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone; // Fallback: Gerätezeitzone
 
 const REFRESH_MS = 60000;
 
-// HTML-Escaping gegen DOM-XSS aus API- und Nutzerdaten
+// HTML-Escaping gegen DOM-XSS aus API- und Nutzerdaten (Punkt 6)
 function escapeHtml(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;')
@@ -755,144 +840,6 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
-
-// ══════════════════════════════════════════════
-// FAVORITEN
-// ══════════════════════════════════════════════
-let favorites = JSON.parse(localStorage.getItem('adsb_favorites') || '[]');
-
-function saveFavorites() {
-  localStorage.setItem('adsb_favorites', JSON.stringify(favorites));
-}
-
-function renderFavList() {
-  const list = document.getElementById('fav-list');
-  const count = document.getElementById('fav-count');
-  const activeCallsigns = new Set(Object.values(aircraft).map(ac => (ac.flight||'').trim()));
-  count.textContent = favorites.length ? `(${favorites.length})` : '';
-  // DOM-Knoten statt innerHTML-Interpolation, cs ist Nutzereingabe
-  list.innerHTML = '';
-  favorites.forEach(cs => {
-    const isActive = activeCallsigns.has(cs);
-    const tag = document.createElement('div');
-    tag.className = 'fav-tag' + (isActive ? ' active' : '');
-    tag.append((isActive ? '✈ ' : '') + cs + ' ');
-    const x = document.createElement('span');
-    x.textContent = '✕';
-    x.addEventListener('click', () => removeFav(cs));
-    tag.appendChild(x);
-    list.appendChild(tag);
-  });
-}
-
-function addFav() {
-  const input = document.getElementById('fav-input');
-  const cs = input.value.trim().toUpperCase();
-  if (!cs || favorites.includes(cs)) { input.value = ''; return; }
-  // Nur Callsign-Zeichen zulassen
-  if (!/^[A-Z0-9]{2,8}$/.test(cs)) { input.value = ''; return; }
-  favorites.push(cs);
-  saveFavorites();
-  renderFavList();
-  input.value = '';
-}
-
-function removeFav(cs) {
-  favorites = favorites.filter(f => f !== cs);
-  saveFavorites();
-  renderFavList();
-}
-
-function toggleFavPanel() {
-  const body = document.getElementById('fav-body');
-  body.classList.toggle('open');
-}
-
-// Enter-Taste im Input
-async function init() {
-  // Gespeicherten Radius laden
-  const savedRadius = localStorage.getItem('userRadius');
-  const savedAlert  = localStorage.getItem('userAlert');
-  if (savedRadius) document.getElementById('radius-input').value = savedRadius;
-  if (savedAlert)  document.getElementById('alert-input').value  = savedAlert;
-
-  // Änderungen speichern
-  document.getElementById('radius-input').addEventListener('change', () => {
-    localStorage.setItem('userRadius', document.getElementById('radius-input').value);
-  });
-  document.getElementById('alert-input').addEventListener('change', () => {
-    localStorage.setItem('userAlert', document.getElementById('alert-input').value);
-  });
-
-  // Airlines vom Server laden (single source of truth)
-  try {
-    const r = await fetch('https://web-production-a6fc8.up.railway.app/airlines');
-    if (r.ok) AIRLINES = await r.json();
-  } catch(e) { console.warn('Airlines konnten nicht geladen werden:', e); }
-
-  document.getElementById('fav-input').addEventListener('keydown', e => {
-    if (e.key === 'Enter') addFav();
-  });
-  renderFavList();
-
-  // Aktivierungscode laden
-  const input = document.getElementById('tg-chat-id');
-  if (input && tgToken) {
-    input.value = tgToken;
-    input.style.borderColor = '#3f9';
-  }
-}
-
-// ══════════════════════════════════════════════
-// TELEGRAM NOTIFICATIONS
-// ══════════════════════════════════════════════
-const PUSH_SERVER = 'https://web-production-a6fc8.up.railway.app';
-const FEEDER_URL  = 'https://feeder.adsb-radar.de/data/aircraft.json';
-const FEEDER_LAT  = 47.9732;  // Koordinaten deines Pi-Standorts
-const FEEDER_LON  = 7.8319;
-
-let dataSource    = 'live';   // 'live' | 'feeder'
-let feederOnline  = false;    // wird beim Start geprüft
-
-// Aktivierungscode (Token) statt Chat-ID; alte Werte werden verworfen
-let tgToken = localStorage.getItem('tg_token') || '';
-
-function saveTgToken() {
-  const input = document.getElementById('tg-chat-id');
-  tgToken = input.value.trim();
-  localStorage.setItem('tg_token', tgToken);
-  input.style.borderColor = tgToken ? '#3f9' : '#f66';
-}
-
-document.addEventListener('DOMContentLoaded', () => init());
-
-let lastUpdate = 0;
-
-async function updateServer() {
-  renderFavList();
-  if (!tgToken || !myLat) return;
-  if (Date.now() - lastUpdate < 55000) return; // Max einmal pro Minute
-  lastUpdate = Date.now();
-  const alertNm  = parseInt(document.getElementById('alert-input').value)  || 20;
-  const radiusNm = parseInt(document.getElementById('radius-input').value) || 40;
-  try {
-    await fetch(`${PUSH_SERVER}/update`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        token:        tgToken,
-        lat:          myLat,
-        lon:          myLon,
-        radius:       radiusNm,
-        alert_radius: alertNm,
-        favorites:    favorites,
-        timezone:     Intl.DateTimeFormat().resolvedOptions().timeZone
-      })
-    });
-  } catch(e) { /* ignore */ }
-}
-
-
 
 function getAirline(callsign, reg) {
   if (!callsign) return '';
@@ -917,6 +864,57 @@ function getCity(icao) {
 // ══════════════════════════════════════════════
 const canvas = document.getElementById('radar-canvas');
 const ctx = canvas.getContext('2d');
+
+// Klick auf Radar: nächstes Flugzeug auswählen
+canvas.addEventListener('click', (e) => {
+  if (!myLat) return;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width / dpr, H = canvas.height / dpr;
+  const cx = W/2, cy = H/2, R = Math.min(cx, cy) - 4;
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const radiusNm = parseInt(document.getElementById('radius-input').value) || 40;
+
+  let closest = null, closestDist = 18; // max 18px Trefferradius
+  Object.values(aircraft).forEach(ac => {
+    if (ac.lat == null) return;
+    const dst = ac.dst ?? haversine(myLat, myLon, ac.lat, ac.lon);
+    if (dst > radiusNm) return;
+    const brg = bearingTo(myLat, myLon, ac.lat, ac.lon);
+    const frac = dst / radiusNm;
+    const rad = (brg - 90) * Math.PI / 180;
+    const x = cx + R * frac * Math.cos(rad);
+    const y = cy + R * frac * Math.sin(rad);
+    const d = Math.hypot(mx - x, my - y);
+    if (d < closestDist) { closestDist = d; closest = ac; }
+  });
+  if (closest) selectAircraft(closest.hex);
+});
+
+// Cursor ändern wenn über Flugzeug
+canvas.addEventListener('mousemove', (e) => {
+  if (!myLat) return;
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width / dpr, H = canvas.height / dpr;
+  const cx = W/2, cy = H/2, R = Math.min(cx, cy) - 4;
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const radiusNm = parseInt(document.getElementById('radius-input').value) || 40;
+
+  let hit = false;
+  Object.values(aircraft).forEach(ac => {
+    if (ac.lat == null || hit) return;
+    const dst = ac.dst ?? haversine(myLat, myLon, ac.lat, ac.lon);
+    if (dst > radiusNm) return;
+    const brg = bearingTo(myLat, myLon, ac.lat, ac.lon);
+    const frac = dst / radiusNm;
+    const rad = (brg - 90) * Math.PI / 180;
+    const x = cx + R * frac * Math.cos(rad);
+    const y = cy + R * frac * Math.sin(rad);
+    if (Math.hypot(mx - x, my - y) < 18) hit = true;
+  });
+  canvas.style.cursor = hit ? 'pointer' : 'default';
+});
 
 function resizeCanvas() {
   const panel = document.getElementById('radar-panel');
@@ -1008,11 +1006,9 @@ function drawRadar() {
   // aircraft
   Object.values(aircraft).forEach(ac => {
     if (ac.lat==null||myLat==null) return;
-    const cLat = dataSource==='feeder' ? FEEDER_LAT : myLat;
-    const cLon = dataSource==='feeder' ? FEEDER_LON : myLon;
-    const dst = ac.dst ?? haversine(cLat,cLon,ac.lat,ac.lon);
+    const dst = ac.dst ?? haversine(myLat,myLon,ac.lat,ac.lon);
     if (dst > radiusNm) return;
-    const brg = bearingTo(cLat,cLon,ac.lat,ac.lon);
+    const brg = bearingTo(myLat,myLon,ac.lat,ac.lon);
     const frac = dst/radiusNm;
     const rad = (brg-90)*Math.PI/180;
     const x = cx+R*frac*Math.cos(rad), y = cy+R*frac*Math.sin(rad);
@@ -1069,22 +1065,35 @@ function bearingTo(lat1,lon1,lat2,lon2) {
 async function fetchRoute(callsign) {
   if (!callsign) return null;
   const cs = callsign.trim();
-  if (routeCache[cs] !== undefined) return routeCache[cs];
-  routeCache[cs] = null; // Platzhalter gegen Doppel-Anfragen
+  const now = Date.now();
+  // Bereits als Route bekannt
+  if (routeCache[cs] && routeCache[cs].orig) return routeCache[cs];
+  // Kuerzlich erfolglos oder gerade in Arbeit -> noch nicht erneut versuchen
+  if (routeRetry[cs] && now < routeRetry[cs]) return null;
+  routeRetry[cs] = now + 10000; // Schutz gegen parallele Doppel-Anfragen (>= Timeout)
   try {
     const r = await fetch(`https://web-production-a6fc8.up.railway.app/route?callsign=${encodeURIComponent(cs)}`,
                           {signal: AbortSignal.timeout(8000)});
-    if (!r.ok) return null;
+    if (!r.ok) { routeRetry[cs] = now + 60000; return null; } // transient: in 60s erneut
     const d = await r.json();
-    if (!d?.route?.orig?.iata || !d?.route?.dest?.iata) return null;
-    const route = {
-      orig: { iata: d.route.orig.iata, icao: d.route.orig.icao || '', city: AIRPORTS[d.route.orig.iata] || d.route.orig.city || '' },
-      dest: { iata: d.route.dest.iata, icao: d.route.dest.icao || '', city: AIRPORTS[d.route.dest.iata] || d.route.dest.city || '' },
-    };
-    routeCache[cs] = route;
-    renderList(); // Route sofort anzeigen
-    return route;
-  } catch { return null; }
+    if (d?.route?.orig?.iata && d?.route?.dest?.iata) {
+      const route = {
+        orig: { iata: d.route.orig.iata, icao: d.route.orig.icao || '', city: AIRPORTS[d.route.orig.iata] || d.route.orig.city || '' },
+        dest: { iata: d.route.dest.iata, icao: d.route.dest.icao || '', city: AIRPORTS[d.route.dest.iata] || d.route.dest.city || '' },
+      };
+      routeCache[cs] = route;
+      delete routeRetry[cs];
+      renderList(); // Route sofort anzeigen
+      return route;
+    }
+    // Keine Route: bei Drosselung bald erneut, bei echter Fehlanzeige laenger warten
+    const transient = d?.source === 'cooldown' || d?.source === 'ratelimited';
+    routeRetry[cs] = now + (transient ? 60000 : 30 * 60000);
+    return null;
+  } catch {
+    routeRetry[cs] = now + 60000; // Timeout/Netzfehler: in 60s erneut
+    return null;
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -1095,7 +1104,9 @@ async function fetchRoute(callsign) {
 async function fetchAllRoutes() {
   const calls = Object.values(aircraft)
     .map(ac => (ac.flight||'').trim())
-    .filter(cs => cs.length >= 3 && !Object.prototype.hasOwnProperty.call(routeCache, cs));
+    .filter(cs => cs.length >= 3
+                  && !(routeCache[cs] && routeCache[cs].orig)
+                  && !(routeRetry[cs] && Date.now() < routeRetry[cs]));
 
   const BATCH = 4;
   for (let i = 0; i < calls.length; i += BATCH) {
@@ -1153,60 +1164,6 @@ async function fetchAllOperators() {
 // ══════════════════════════════════════════════
 // MAIN FETCH
 // ══════════════════════════════════════════════
-async function checkFeederStatus() {
-  try {
-    const r = await fetch(FEEDER_URL, { signal: AbortSignal.timeout(5000) });
-    feederOnline = r.ok;
-  } catch {
-    feederOnline = false;
-  }
-  const btn = document.getElementById('source-btn');
-  if (feederOnline) {
-    btn.disabled = false;
-    btn.style.opacity = '1';
-    btn.style.cursor = 'pointer';
-  } else {
-    btn.disabled = true;
-    btn.style.opacity = '0.4';
-    btn.style.cursor = 'not-allowed';
-    if (dataSource === 'feeder') {
-      dataSource = 'live';
-      updateSourceBtn();
-    }
-  }
-}
-
-function updateSourceBtn() {
-  const btn = document.getElementById('source-btn');
-  const lbl = document.getElementById('source-label');
-  if (dataSource === 'feeder') {
-    btn.textContent = '🌍 Live-Feed';
-    btn.style.background = '#0d2a1a';
-    btn.style.borderColor = '#2a6a3a';
-    btn.style.color = '#3f9';
-    if (lbl) lbl.textContent = 'Daten: Mein Feeder (feeder.adsb-radar.de) · Routen: adsbdb.com';
-  } else {
-    btn.textContent = '📡 Mein Feeder';
-    btn.style.background = '';
-    btn.style.borderColor = '';
-    btn.style.color = '';
-    if (lbl) lbl.textContent = 'Daten: airplanes.live · Routen: adsbdb.com';
-  }
-}
-
-function toggleSource() {
-  if (!feederOnline) return;
-  dataSource = dataSource === 'live' ? 'feeder' : 'live';
-  updateSourceBtn();
-  // Karte zentrieren
-  if (dataSource === 'feeder') {
-    showToast('📡 Feeder-Modus: Karte auf Freiburg zentriert');
-  } else {
-    showToast('🌍 Live-Feed: Karte auf deinen Standort');
-  }
-  fetchData();
-}
-
 function resetRadius() {
   document.getElementById('radius-input').value = 40;
   document.getElementById('alert-input').value  = 20;
@@ -1225,35 +1182,24 @@ async function fetchData() {
   const radius = parseInt(document.getElementById('radius-input').value)||40;
 
   try {
-    let resp;
-    if (dataSource === 'feeder') {
-      // Feeder-Modus: eigener Pi, fester Standort
-      resp = await fetch(FEEDER_URL, { signal: AbortSignal.timeout(10000) });
-      if (!resp.ok) throw new Error('feeder ' + resp.status);
-    } else {
     // airplanes.live hat native CORS-Unterstuetzung. Fallback ueber EIGENEN Proxy,
-    // damit GPS-Koordinaten nicht an einen Drittanbieter (corsproxy.io) gehen
+    // damit GPS-Koordinaten nicht an einen Drittanbieter gehen (Punkt 7)
     const directUrl = `https://api.airplanes.live/v2/point/${myLat.toFixed(4)}/${myLon.toFixed(4)}/${radius}`;
     const proxyUrl  = `${PUSH_SERVER}/aircraft?lat=${myLat.toFixed(4)}&lon=${myLon.toFixed(4)}&radius=${radius}`;
+    let resp;
     try {
       resp = await fetch(directUrl, { signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error('direct ' + resp.status);
     } catch {
       resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
     }
-    }
     if (!resp.ok) throw new Error(`HTTP ${resp.status} (proxy)`);
     const data = await resp.json();
-    // Feeder liefert data.aircraft[], airplanes.live liefert data.ac[]
-    const acList = data.ac || data.aircraft || [];
-    // Im Feeder-Modus: Radar auf Pi-Standort zentrieren
-    const radarLat = dataSource === 'feeder' ? FEEDER_LAT : myLat;
-    const radarLon = dataSource === 'feeder' ? FEEDER_LON : myLon;
     const alertNm = parseInt(document.getElementById('alert-input').value)||20;
     const prevHexes = new Set(knownHexes);
     const fresh = {};
 
-    acList.forEach(ac => {
+    (data.ac||[]).forEach(ac => {
       fresh[ac.hex] = ac;
       // Besuch zählen: Flugzeug war weder im letzten Fetch noch beim letzten bekannten
       // Radius-Zustand (aus localStorage, max. 10 Min. alt) im Radius
@@ -1277,23 +1223,22 @@ async function fetchData() {
     renderList();
     drawRadar();
     lastFetchTime = Date.now();
-    const acWord = 'Flugzeuge';
-    setApiStatus('green', `${data.total??Object.keys(aircraft).length} ${acWord}`);
-    document.getElementById('last-update').textContent = 'Update: '+new Date().toLocaleTimeString('de-DE');
+    setApiStatus('green', `${data.total??Object.keys(aircraft).length} Flugzeuge`);
+    document.getElementById('last-update').textContent = t.last_update(new Date().toLocaleTimeString(LANG==='de'?'de-DE':'en-GB'));
 
 
     if (selectedHex && aircraft[selectedHex]) selectAircraft(selectedHex);
 
     // Routen nachladen (Airline-Name kommt dabei automatisch mit)
     fetchAllRoutes();
-    updateServer();
+
 
   } catch(e) {
     const msg = e.name === 'TimeoutError' ? 'Timeout' :
                 (e.message.includes('Failed to fetch') || e.message.includes('Load failed') || e.message.includes('NetworkError'))
                   ? 'Kein Netz / CORS' : e.message.slice(0, 30);
     setApiStatus('red', '⚠ ' + msg);
-    document.getElementById('last-update').textContent = 'Fehler: ' + msg;
+    document.getElementById('last-update').textContent = t.error(msg);
   } finally {
     isFetching = false;
     btn.disabled = false;
@@ -1307,17 +1252,9 @@ async function fetchData() {
 function renderList() {
   const radiusNm = parseInt(document.getElementById('radius-input').value)||40;
   const alertNm  = parseInt(document.getElementById('alert-input').value)||20;
-  const cLat = dataSource==='feeder' ? FEEDER_LAT : myLat;
-  const cLon = dataSource==='feeder' ? FEEDER_LON : myLon;
   const acArr = Object.values(aircraft)
     .filter(ac => ac.lat!=null||ac.dst!=null)
-    .map(ac => {
-        // Im Feeder-Modus: ac.dst ignorieren (kommt von airplanes.live), neu berechnen
-        const rawDst = dataSource==='feeder' ? null : ac.dst;
-        ac._dst = rawDst ?? (ac.lat!=null ? haversine(cLat,cLon,ac.lat,ac.lon) : 9999);
-        return ac;
-      })
-    .filter(ac => dataSource==='feeder' ? true : ac._dst <= radiusNm)
+    .map(ac => { ac._dst = ac.dst??(ac.lat!=null?haversine(myLat,myLon,ac.lat,ac.lon):9999); return ac; })
     .sort((a,b) => a._dst-b._dst);
 
   const scroll = document.getElementById('list-scroll');
@@ -1332,6 +1269,7 @@ function renderList() {
     const typeName = ac.t ? (AIRCRAFT_TYPES[ac.t.toUpperCase()]||ac.t) : '–';
     const rt = routeCache[call];
     const routeStr = rt ? `${rt.orig.iata}›${rt.dest.iata}` : '–';
+    // Alle aus APIs stammenden Werte escapen (Punkt 6)
     row.innerHTML = `
       <span class="col-call">${escapeHtml(call)}</span>
       <span class="col-airline">${escapeHtml(airline||'–')}</span>
@@ -1363,7 +1301,7 @@ async function selectAircraft(hex) {
 
   // Header
   document.getElementById('dp-callsign').textContent = call;
-  document.getElementById('dp-airline').textContent = airline||'Unbekannte Airline';
+  document.getElementById('dp-airline').textContent = airline||t.unknown_airline;
 
   // Badges
   const badges = document.getElementById('dp-badges');
@@ -1427,14 +1365,19 @@ async function loadAircraftPhoto(hex, reg) {
   const credit = document.getElementById('dp-photo-credit');
   const placeholder = document.getElementById('dp-photo-placeholder');
 
+  // Reset
   img.className = '';
   img.src = '';
   credit.textContent = '';
   wrap.classList.remove('visible');
   placeholder.style.display = 'flex';
 
-  if (photoCache[hex] === null) return;
-  if (photoCache[hex]) { applyPhoto(photoCache[hex]); return; }
+  // Cache prüfen
+  if (photoCache[hex] === null) return; // bekannt kein Foto
+  if (photoCache[hex]) {
+    applyPhoto(photoCache[hex]);
+    return;
+  }
 
   try {
     const res = await fetch(`https://api.planespotters.net/pub/photos/hex/${hex}`);
@@ -1495,10 +1438,278 @@ function setGpsStatus(color, text) {
 // GPS-TIMEZONE (lokale Uhrzeit am Standort)
 // ══════════════════════════════════════════════
 async function fetchTimezone(lat, lon) {
-  // Browser-eigene Zeitzone via Intl API — kein externer API-Call, kein CORS-Problem
+  // Browser-eigene Zeitzone nutzen statt externer API (kein CORS-Problem)
   try {
     myTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   } catch { /* Fallback bleibt */ }
+}
+
+// ══════════════════════════════════════════════
+// RADIUS NACH ORTSZEIT (GPS-Standort)
+// ══════════════════════════════════════════════
+
+
+
+
+// ══════════════════════════════════════════════
+// i18n – Mehrsprachigkeit
+// ══════════════════════════════════════════════
+const LANG = (navigator.language || 'de').toLowerCase().startsWith('de') ? 'de' : 'en';
+
+const T = {
+  de: {
+    radius:               'Radius: ',
+    alert:                'Alert: ',
+    aircraft:             'Flugzeug',
+    flightdata:           'Flugdaten',
+    distance:             'Entfernung',
+    fav_toggle:           '⭐ FAVORITEN',
+    fav_add_label:        'Callsign oder Prefix hinzufügen',
+    fav_placeholder:      'z.B. LH oder LH400',
+    fav_add_btn:          '+ Hinzufügen',
+    fav_chatid_label:     'Aktivierungscode',
+    fav_chatid_placeholder: 'Aktivierungscode',
+    fav_save:             '💾 Speichern & Aktivieren',
+    fav_delete:           '🗑 Meine Daten löschen (DSGVO)',
+    fav_help_link:        'ℹ Wie funktioniert das?',
+    fav_chat_hint:        '1. Schreibe <a href="https://t.me/adsb_radar_bot" target="_blank">@adsb_radar_bot</a> in Telegram<br>2. Sende <b>/start</b> – der Bot antwortet mit deinem Aktivierungscode<br>3. Trage ihn hier ein',
+    fav_delete_hint:      'Löscht Standort, Chat-ID und Favoriten vom Server. Lokale Daten bleiben im Browser erhalten.',
+    fav_delete_confirm:   'Alle gespeicherten Daten vom Server löschen?',
+    footer_data:          'Daten: airplanes.live · Routen: adsbdb.com',
+    footer_legal:         'Impressum & Datenschutz',
+    loading:              '⟳ Lade…',
+    gps_btn:              '📍 Meinen Standort automatisch ermitteln',
+    gps_loading:          '📍 Ermittle Standort…',
+    unknown_airline:      'Unbekannte Airline',
+    count:                (n) => `${n} Flugzeuge`,
+    last_update:          (t) => `Update: ${t}`,
+    error:                (m) => `Fehler: ${m}`,
+    saving:               '⏳ Wird gespeichert…',
+    saved:                '✅ Aktiviert! Du wirst per Telegram benachrichtigt.',
+    save_error:           '❌ Fehler beim Speichern. Versuche es erneut.',
+    no_chatid:            '⚠ Bitte Aktivierungscode eingeben',
+    no_gps:               '⚠ Kein GPS-Standort verfügbar',
+    deleting:             '⏳ Wird gelöscht…',
+    deleted:              '✅ Serverdaten gelöscht.',
+    delete_error:         '❌ Fehler beim Löschen.',
+    no_chatid_delete:     '⚠ Kein Aktivierungscode gespeichert',
+  },
+  en: {
+    radius:               'Radius: ',
+    alert:                'Alert: ',
+    aircraft:             'Aircraft',
+    flightdata:           'Flight Data',
+    distance:             'Distance',
+    fav_toggle:           '⭐ FAVORITES',
+    fav_add_label:        'Add callsign or prefix',
+    fav_placeholder:      'e.g. LH or LH400',
+    fav_add_btn:          '+ Add',
+    fav_chatid_label:     'Activation code',
+    fav_chatid_placeholder: 'Activation code',
+    fav_save:             '💾 Save & Activate',
+    fav_delete:           '🗑 Delete my data (GDPR)',
+    fav_help_link:        'ℹ How does this work?',
+    fav_chat_hint:        '1. Open <a href="https://t.me/adsb_radar_bot" target="_blank">@adsb_radar_bot</a> in Telegram<br>2. Send <b>/start</b> – the bot replies with your activation code<br>3. Enter it here',
+    fav_delete_hint:      'Removes your location, Chat ID and favorites from the server. Local browser data is not affected.',
+    fav_delete_confirm:   'Delete all stored data from the server?',
+    footer_data:          'Data: airplanes.live · Routes: adsbdb.com',
+    footer_legal:         'Legal & Privacy',
+    loading:              '⟳ Loading…',
+    gps_btn:              '📍 Detect my location automatically',
+    gps_loading:          '📍 Detecting location…',
+    unknown_airline:      'Unknown Airline',
+    count:                (n) => `${n} aircraft`,
+    last_update:          (t) => `Updated: ${t}`,
+    error:                (m) => `Error: ${m}`,
+    saving:               '⏳ Saving…',
+    saved:                '✅ Activated! You will be notified via Telegram.',
+    save_error:           '❌ Error saving. Please try again.',
+    no_chatid:            '⚠ Please enter your activation code',
+    no_gps:               '⚠ No GPS location available',
+    deleting:             '⏳ Deleting…',
+    deleted:              '✅ Server data deleted.',
+    delete_error:         '❌ Error deleting data.',
+    no_chatid_delete:     '⚠ No activation code stored',
+  }
+};
+
+const t = T[LANG];
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.dataset.i18n;
+    if (t[key] && typeof t[key] === 'string') {
+      if (el.tagName === 'INPUT' || el.tagName === 'BUTTON' || el.tagName === 'SPAN' || el.tagName === 'LABEL' || el.tagName === 'DIV' || el.tagName === 'A') {
+        if (key === 'fav_chat_hint' || key === 'footer_data') {
+          el.innerHTML = t[key];
+        } else {
+          el.textContent = t[key];
+        }
+      }
+    }
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const key = el.dataset.i18nPlaceholder;
+    if (t[key]) el.placeholder = t[key];
+  });
+  // Chat-Hint separat da HTML
+  const hint = document.getElementById('fav-chat-hint');
+  if (hint) hint.innerHTML = t.fav_chat_hint;
+  // Delete hint
+  const deleteHint = document.querySelector('#fav-panel p[style]');
+  if (deleteHint) deleteHint.textContent = t.fav_delete_hint;
+  // Links auf englische Seiten umstellen
+  if (LANG === 'en') {
+    const helpLink = document.querySelector('a[href="help.html"]');
+    if (helpLink) helpLink.href = 'help_en.html';
+    const legalLink = document.getElementById('legal-link');
+    if (legalLink) legalLink.href = 'legal_en.html';
+  }
+}
+
+// ══════════════════════════════════════════════
+// FAVORITEN
+// ══════════════════════════════════════════════
+const PUSH_SERVER = 'https://web-production-a6fc8.up.railway.app';
+
+let favorites = JSON.parse(localStorage.getItem('fav_callsigns') || '[]');
+// Aktivierungscode (Token) statt Chat-ID; alte Werte werden verworfen (Punkt 1)
+let favToken = localStorage.getItem('fav_token') || '';
+
+function toggleFavPanel() {
+  const panel = document.getElementById('fav-panel');
+  panel.classList.toggle('visible');
+  if (panel.classList.contains('visible')) {
+    renderFavTags();
+    document.getElementById('fav-chatid').value = favToken;
+  }
+}
+
+function renderFavTags() {
+  const container = document.getElementById('fav-tags');
+  container.innerHTML = '';
+  favorites.forEach(cs => {
+    const tag = document.createElement('span');
+    tag.className = 'fav-tag';
+    // Text als textContent, kein HTML-Interpolation (Punkt 6)
+    tag.append(cs + ' ');
+    const btn = document.createElement('button');
+    btn.textContent = '✕';
+    btn.addEventListener('click', () => removeFav(cs));
+    tag.appendChild(btn);
+    container.appendChild(tag);
+  });
+}
+
+function addFav() {
+  const input = document.getElementById('fav-input');
+  const val = input.value.trim().toUpperCase();
+  if (!val || val.length < 2) return;
+  // Nur Callsign-Zeichen zulassen (Punkt 6)
+  if (!/^[A-Z0-9]{2,8}$/.test(val)) { input.value = ''; return; }
+  if (!favorites.includes(val)) {
+    favorites.push(val);
+    localStorage.setItem('fav_callsigns', JSON.stringify(favorites));
+  }
+  input.value = '';
+  renderFavTags();
+}
+
+function removeFav(cs) {
+  favorites = favorites.filter(f => f !== cs);
+  localStorage.setItem('fav_callsigns', JSON.stringify(favorites));
+  renderFavTags();
+}
+
+async function saveFavs() {
+  const token = document.getElementById('fav-chatid').value.trim();
+  const status = document.getElementById('fav-status');
+  if (!token) { status.textContent = t.no_chatid; status.style.color = '#f80'; return; }
+  if (!myLat) { status.textContent = t.no_gps; status.style.color = '#f80'; return; }
+
+  favToken = token;
+  localStorage.setItem('fav_token', token);
+
+  status.textContent = t.saving;
+  status.style.color = '#4af';
+
+  try {
+    const radius    = parseInt(document.getElementById('radius-input').value) || 40;
+    const alertRad  = parseInt(document.getElementById('alert-input').value) || 20;
+    const resp = await fetch(`${PUSH_SERVER}/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token:        token,
+        lat:          myLat,
+        lon:          myLon,
+        radius:       radius,
+        alert_radius: alertRad,
+        favorites:    favorites,
+        timezone:     Intl.DateTimeFormat().resolvedOptions().timeZone
+      })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      status.textContent = t.saved;
+      status.style.color = '#3f9';
+    } else {
+      throw new Error('Server error');
+    }
+  } catch(e) {
+    status.textContent = t.save_error;
+    status.style.color = '#f66';
+  }
+}
+
+async function deleteFavData() {
+  const token = favToken || document.getElementById('fav-chatid').value.trim();
+  const status = document.getElementById('fav-status');
+  if (!token) { status.textContent = t.no_chatid_delete; status.style.color = '#f80'; return; }
+  if (!confirm(t.fav_delete_confirm)) return;
+  status.textContent = t.deleting;
+  status.style.color = '#4af';
+  try {
+    const resp = await fetch(`${PUSH_SERVER}/delete`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: token })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      status.textContent = t.deleted;
+      status.style.color = '#3f9';
+      // Lokalen Token nach erfolgreichem Loeschen verwerfen
+      favToken = '';
+      localStorage.removeItem('fav_token');
+    } else {
+      throw new Error('Server error');
+    }
+  } catch(e) {
+    status.textContent = t.delete_error;
+    status.style.color = '#f66';
+  }
+}
+
+async function updateServer() {
+  if (!favToken || !myLat || !favorites.length) return;
+  try {
+    const radius   = parseInt(document.getElementById('radius-input').value) || 40;
+    const alertRad = parseInt(document.getElementById('alert-input').value) || 20;
+    await fetch(`${PUSH_SERVER}/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token:        favToken,
+        lat:          myLat,
+        lon:          myLon,
+        radius:       radius,
+        alert_radius: alertRad,
+        favorites:    favorites,
+        timezone:     Intl.DateTimeFormat().resolvedOptions().timeZone
+      })
+    });
+  } catch(e) { console.warn('updateServer failed:', e.message); }
 }
 
 // ══════════════════════════════════════════════
@@ -1533,10 +1744,10 @@ async function getLocation() {
 
 async function tryGps() {
   const btn = document.getElementById('loc-gps-btn');
-  btn.textContent = '📍 Ermittle Standort…';
+  btn.textContent = t.gps_loading;
   btn.disabled = true;
   await getLocation();
-  btn.textContent = '📍 Meinen Standort automatisch ermitteln';
+  btn.textContent = t.gps_btn;
   btn.disabled = false;
   if (myLat) fetchData();
 }
@@ -1562,19 +1773,91 @@ async function refreshGpsQuiet() {
 // ══════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════
-window.addEventListener('resize', resizeCanvas);
-requestAnimationFrame(() => requestAnimationFrame(resizeCanvas));
-drawRadar();
-getLocation().then(() => { if (myLat) { fetchData(); updateServer(); } });
-setInterval(() => { if (myLat) fetchData(); }, REFRESH_MS);
-// Feeder-Status beim Start und alle 30s prüfen
-checkFeederStatus();
-setInterval(checkFeederStatus, 30000);
-setInterval(() => { if (myLat) updateServer(); }, 60 * 1000);
-setInterval(refreshGpsQuiet, 5 * 60 * 1000);
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && myLat) { fetchData(); updateServer(); }
+async function init() {
+  // Gespeicherte Werte laden
+  const savedRadius = localStorage.getItem('userRadius');
+  const savedAlert  = localStorage.getItem('userAlert');
+  if (savedRadius) document.getElementById('radius-input').value = savedRadius;
+  if (savedAlert)  document.getElementById('alert-input').value  = savedAlert;
+
+  // Änderungen speichern
+  document.getElementById('radius-input').addEventListener('change', () => {
+    localStorage.setItem('userRadius', document.getElementById('radius-input').value);
+  });
+  document.getElementById('alert-input').addEventListener('change', () => {
+    localStorage.setItem('userAlert', document.getElementById('alert-input').value);
+  });
+
+  // Airlines von Railway laden (single source of truth)
+  try {
+    const r = await fetch('https://web-production-a6fc8.up.railway.app/airlines');
+    if (r.ok) AIRLINES = await r.json();
+  } catch(e) { console.warn('Airlines konnten nicht geladen werden:', e); }
+
+  applyI18n();
+  window.addEventListener('resize', resizeCanvas);
+  requestAnimationFrame(() => requestAnimationFrame(resizeCanvas));
+  drawRadar();
+  // Onboarding prüfen
+  if (localStorage.getItem('onboarded')) {
+    document.getElementById('onboard-modal').classList.add('hidden');
+    getLocation().then(() => { if (myLat) { fetchData(); updateServer(); } });
+  }
+  // sonst wartet startApp() auf Button-Klick
+
+  setInterval(() => { if (myLat) fetchData(); }, REFRESH_MS);
+  setInterval(refreshGpsQuiet, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && myLat) { fetchData(); }
+  });
+}
+
+// Service Worker registrieren
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+// PWA Install-Prompt
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  // Install-Banner nach 30s zeigen wenn Nutzer aktiv ist
+  setTimeout(() => showInstallBanner(), 30000);
 });
+
+function showInstallBanner() {
+  if (!deferredInstallPrompt) return;
+  const banner = document.createElement('div');
+  banner.id = 'install-banner';
+  banner.innerHTML = `
+    <span>📲 Add ADS-B Radar to your home screen</span>
+    <button onclick="installApp()">Install</button>
+    <button onclick="this.parentElement.remove()">✕</button>
+  `;
+  banner.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#0d1224;border:1px solid #2a4a8a;border-radius:8px;padding:10px 14px;display:flex;gap:10px;align-items:center;z-index:300;font-size:0.75rem;color:#c0d4f0;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.5)';
+  banner.querySelector('button').style.cssText = 'background:#0d2a1a;border:1px solid #2a6a3a;color:#3f9;padding:4px 12px;border-radius:4px;cursor:pointer;font-family:monospace;font-size:0.75rem';
+  banner.querySelectorAll('button')[1].style.cssText = 'background:none;border:none;color:#456;cursor:pointer;font-size:1rem;padding:0 4px';
+  document.body.appendChild(banner);
+}
+
+async function installApp() {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  const banner = document.getElementById('install-banner');
+  if (banner) banner.remove();
+}
+
+// Onboarding: beim ersten Besuch zeigen, danach nicht mehr
+function startApp() {
+  localStorage.setItem('onboarded', '1');
+  document.getElementById('onboard-modal').classList.add('hidden');
+  getLocation().then(() => { if (myLat) { fetchData(); updateServer(); } });
+}
+
+document.addEventListener('DOMContentLoaded', () => init());
 </script>
 </body>
 </html>

@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Content-Security-Policy als zusaetzliche XSS-Verteidigung.
+     Hinweis: frame-ancestors/X-Frame-Options wirken nur als HTTP-Header. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.airplanes.live https://api.adsbdb.com https://api.planespotters.net https://feeder.adsb-radar.de https://web-production-a6fc8.up.railway.app; font-src 'self'; object-src 'none'; base-uri 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'">
 <title>✈ ADSB Radar</title>
 <meta name="description" content="Live ADS-B aircraft radar – powered by adsb.lol">
 <style>
@@ -508,8 +511,8 @@ body {
           <button id="fav-add-btn" onclick="addFav()">＋</button>
         </div>
         <div id="fav-tg-row">
-          <input type="text" id="tg-chat-id" placeholder="Telegram Chat-ID" style="flex:1;background:#111827;border:1px solid #1e2d55;color:#e0e8ff;padding:5px 8px;border-radius:4px;font-family:monospace;font-size:0.72rem;">
-          <button onclick="saveTgChatId()" style="background:#0d2a1a;border:1px solid #2a6a3a;color:#3f9;border-radius:4px;padding:5px 8px;cursor:pointer;font-family:monospace;font-size:0.72rem;">💾</button>
+          <input type="text" id="tg-chat-id" placeholder="Aktivierungscode" autocomplete="off" maxlength="64" style="flex:1;background:#111827;border:1px solid #1e2d55;color:#e0e8ff;padding:5px 8px;border-radius:4px;font-family:monospace;font-size:0.72rem;">
+          <button onclick="saveTgToken()" style="background:#0d2a1a;border:1px solid #2a6a3a;color:#3f9;border-radius:4px;padding:5px 8px;cursor:pointer;font-family:monospace;font-size:0.72rem;">💾</button>
           <a href="https://t.me/adsb_radar_bot" target="_blank" style="background:#0d1a2a;border:1px solid #1e2d55;color:#4af;border-radius:4px;padding:5px 8px;font-family:monospace;font-size:0.72rem;text-decoration:none;">✈ Bot</a>
         </div>
         <div id="fav-list"></div>
@@ -743,6 +746,16 @@ let myTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone; // Fallback: 
 
 const REFRESH_MS = 60000;
 
+// HTML-Escaping gegen DOM-XSS aus API- und Nutzerdaten
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ══════════════════════════════════════════════
 // FAVORITEN
 // ══════════════════════════════════════════════
@@ -757,19 +770,27 @@ function renderFavList() {
   const count = document.getElementById('fav-count');
   const activeCallsigns = new Set(Object.values(aircraft).map(ac => (ac.flight||'').trim()));
   count.textContent = favorites.length ? `(${favorites.length})` : '';
-  list.innerHTML = favorites.map(cs => {
+  // DOM-Knoten statt innerHTML-Interpolation, cs ist Nutzereingabe
+  list.innerHTML = '';
+  favorites.forEach(cs => {
     const isActive = activeCallsigns.has(cs);
-    return `<div class="fav-tag${isActive ? ' active' : ''}">
-      ${isActive ? '✈ ' : ''}${cs}
-      <span onclick="removeFav('${cs}')">✕</span>
-    </div>`;
-  }).join('');
+    const tag = document.createElement('div');
+    tag.className = 'fav-tag' + (isActive ? ' active' : '');
+    tag.append((isActive ? '✈ ' : '') + cs + ' ');
+    const x = document.createElement('span');
+    x.textContent = '✕';
+    x.addEventListener('click', () => removeFav(cs));
+    tag.appendChild(x);
+    list.appendChild(tag);
+  });
 }
 
 function addFav() {
   const input = document.getElementById('fav-input');
   const cs = input.value.trim().toUpperCase();
   if (!cs || favorites.includes(cs)) { input.value = ''; return; }
+  // Nur Callsign-Zeichen zulassen
+  if (!/^[A-Z0-9]{2,8}$/.test(cs)) { input.value = ''; return; }
   favorites.push(cs);
   saveFavorites();
   renderFavList();
@@ -814,10 +835,10 @@ async function init() {
   });
   renderFavList();
 
-  // Telegram Chat-ID laden
+  // Aktivierungscode laden
   const input = document.getElementById('tg-chat-id');
-  if (input && tgChatId) {
-    input.value = tgChatId;
+  if (input && tgToken) {
+    input.value = tgToken;
     input.style.borderColor = '#3f9';
   }
 }
@@ -833,13 +854,14 @@ const FEEDER_LON  = 7.8319;
 let dataSource    = 'live';   // 'live' | 'feeder'
 let feederOnline  = false;    // wird beim Start geprüft
 
-let tgChatId = localStorage.getItem('tg_chat_id') || '';
+// Aktivierungscode (Token) statt Chat-ID; alte Werte werden verworfen
+let tgToken = localStorage.getItem('tg_token') || '';
 
-function saveTgChatId() {
+function saveTgToken() {
   const input = document.getElementById('tg-chat-id');
-  tgChatId = input.value.trim();
-  localStorage.setItem('tg_chat_id', tgChatId);
-  input.style.borderColor = tgChatId ? '#3f9' : '#f66';
+  tgToken = input.value.trim();
+  localStorage.setItem('tg_token', tgToken);
+  input.style.borderColor = tgToken ? '#3f9' : '#f66';
 }
 
 document.addEventListener('DOMContentLoaded', () => init());
@@ -848,7 +870,7 @@ let lastUpdate = 0;
 
 async function updateServer() {
   renderFavList();
-  if (!tgChatId || !myLat) return;
+  if (!tgToken || !myLat) return;
   if (Date.now() - lastUpdate < 55000) return; // Max einmal pro Minute
   lastUpdate = Date.now();
   const alertNm  = parseInt(document.getElementById('alert-input').value)  || 20;
@@ -858,7 +880,7 @@ async function updateServer() {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        chat_id:      tgChatId,
+        token:        tgToken,
         lat:          myLat,
         lon:          myLon,
         radius:       radiusNm,
@@ -1209,10 +1231,10 @@ async function fetchData() {
       resp = await fetch(FEEDER_URL, { signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error('feeder ' + resp.status);
     } else {
-    // airplanes.live hat native CORS-Unterstützung → kein Proxy nötig, kein Caching-Problem
-    // Fallback auf corsproxy.io falls direkt blockiert
+    // airplanes.live hat native CORS-Unterstuetzung. Fallback ueber EIGENEN Proxy,
+    // damit GPS-Koordinaten nicht an einen Drittanbieter (corsproxy.io) gehen
     const directUrl = `https://api.airplanes.live/v2/point/${myLat.toFixed(4)}/${myLon.toFixed(4)}/${radius}`;
-    const proxyUrl  = `https://corsproxy.io/?${encodeURIComponent(directUrl)}`;
+    const proxyUrl  = `${PUSH_SERVER}/aircraft?lat=${myLat.toFixed(4)}&lon=${myLon.toFixed(4)}&radius=${radius}`;
     try {
       resp = await fetch(directUrl, { signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error('direct ' + resp.status);
@@ -1311,11 +1333,11 @@ function renderList() {
     const rt = routeCache[call];
     const routeStr = rt ? `${rt.orig.iata}›${rt.dest.iata}` : '–';
     row.innerHTML = `
-      <span class="col-call">${call}</span>
-      <span class="col-airline">${airline||'–'}</span>
-      <span class="col-type">${ac.t||'–'}</span>
-      <span class="col-route">${routeStr}</span>
-      <span class="col-alt ${altClass(ac.alt_baro)}">${fmtAlt(ac.alt_baro)}</span>
+      <span class="col-call">${escapeHtml(call)}</span>
+      <span class="col-airline">${escapeHtml(airline||'–')}</span>
+      <span class="col-type">${escapeHtml(ac.t||'–')}</span>
+      <span class="col-route">${escapeHtml(routeStr)}</span>
+      <span class="col-alt ${altClass(ac.alt_baro)}">${escapeHtml(fmtAlt(ac.alt_baro))}</span>
       <span class="col-dist">${ac._dst<9999?ac._dst.toFixed(1):'–'}</span>
       <span class="col-spd">${ac.gs?Math.round(ac.gs):'–'}</span>
     `;
@@ -1347,7 +1369,7 @@ async function selectAircraft(hex) {
   const badges = document.getElementById('dp-badges');
   const alertNm = parseInt(document.getElementById('alert-input').value)||20;
   badges.innerHTML = `
-    ${ac.t?`<span class="badge badge-type">${ac.t}</span>`:''}
+    ${ac.t?`<span class="badge badge-type">${escapeHtml(ac.t)}</span>`:''}
     ${ac._dst<=alertNm?'<span class="badge badge-alert">⚠ ALERT ZONE</span>':''}
   `;
 

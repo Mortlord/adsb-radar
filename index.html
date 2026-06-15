@@ -82,10 +82,16 @@ body {
 #radar-map.active { display: block; }
 .leaflet-container { background: #06090f; }
 #map-btn {
-  background: #1a2a4a; border: 1px solid #2a4a8a; color: #7a9ccc;
-  padding: 3px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(20,32,60,.80); border: 1px solid #2a4a8a; color: #9cc0ee;
+  border-radius: 8px; cursor: pointer; font-size: 1rem; line-height: 1;
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  transition: background .12s, border-color .12s;
 }
-#map-btn:hover { background: #2a3a6a; color: #4af; }
+#map-btn:hover { background: rgba(42,58,106,.95); color: #4af; }
+#map-btn.active { background: rgba(68,170,255,.28); border-color: #4af; color: #dff0ff; }
 
 /* ── Desktop Layout (> 600px) ─────────────── */
 @media (min-width: 601px) {
@@ -505,9 +511,8 @@ body {
   <div id="controls">
     <label>Radius: <input type="number" id="radius-input" value="40" min="10" max="250"> nm</label>
     <label>Alert: <input type="number" id="alert-input" value="20" min="1" max="100"> nm</label>
-    <div style="display:flex;gap:8px;margin-left:auto;">
+    <div style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;">
       <button id="source-btn" onclick="toggleSource()" title="Datenquelle umschalten" style="opacity:0.4;cursor:not-allowed;" disabled>📡 Mein Feeder</button>
-      <button id="map-btn" onclick="toggleMapMode()" title="Radar oder Karte umschalten">🗺 Karte</button>
       <button id="reset-btn" onclick="resetRadius()" title="Radius zurücksetzen">↺</button>
       <button id="refresh-btn" onclick="fetchData()"><span class="refresh-label">⟳ Refresh</span><span class="refresh-icon">⟳</span></button>
     </div>
@@ -515,7 +520,7 @@ body {
 </div>
 
 <div id="main">
-  <div id="radar-panel"><div id="radar-map"></div><canvas id="radar-canvas"></canvas></div>
+  <div id="radar-panel"><div id="radar-map"></div><canvas id="radar-canvas"></canvas><button id="map-btn" onclick="toggleMapMode()" title="Karte als Hintergrund ein/aus">🗺</button></div>
   <div id="list-panel">
     <div id="fav-panel">
       <button id="fav-toggle" onclick="toggleFavPanel()">⭐ FAVORITEN <span id="fav-count"></span></button>
@@ -834,7 +839,7 @@ async function init() {
   });
   renderFavList();
   const _mb = document.getElementById('map-btn');
-  if (_mb) _mb.textContent = mapMode ? '🛰 Radar' : '🗺 Karte';
+  if (_mb) _mb.classList.toggle('active', mapMode);
 
   // Aktivierungscode (Token) laden
   const input = document.getElementById('tg-chat-id');
@@ -1117,7 +1122,7 @@ function toggleMapMode() {
   mapMode = !mapMode;
   localStorage.setItem('radarMapMode', mapMode ? '1' : '0');
   const btn = document.getElementById('map-btn');
-  if (btn) btn.textContent = mapMode ? '🛰 Radar' : '🗺 Karte';
+  if (btn) btn.classList.toggle('active', mapMode);
   mapApplied = null;
   drawRadar();
 }

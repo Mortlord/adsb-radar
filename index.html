@@ -853,9 +853,10 @@ async function init() {
 // TELEGRAM NOTIFICATIONS
 // ══════════════════════════════════════════════
 const PUSH_SERVER = 'https://web-production-a6fc8.up.railway.app';
-const FEEDER_URL  = 'https://feeder.adsb-radar.de/data/aircraft.json';
-const FEEDER_LAT  = 47.9732;  // Koordinaten deines Pi-Standorts
-const FEEDER_LON  = 7.8319;
+// Feeder-Zugriff läuft serverseitig über deinen Token (/feeder). Feed und Koordinaten
+// stehen NICHT mehr im öffentlichen Quelltext, sie werden nur für den Owner geladen.
+let FEEDER_LAT = null;
+let FEEDER_LON = null;
 
 let dataSource    = 'live';   // 'live' | 'feeder'
 let feederOnline  = false;    // wird beim Start geprüft
@@ -870,6 +871,7 @@ function saveFavToken() {
   favToken = input.value.trim();
   localStorage.setItem('fav_token', favToken);
   input.style.borderColor = favToken ? '#3f9' : '#f66';
+  checkFeederStatus();
 }
 
 document.addEventListener('DOMContentLoaded', () => init());
@@ -1244,8 +1246,19 @@ async function fetchAllOperators() {
 // ══════════════════════════════════════════════
 async function checkFeederStatus() {
   try {
-    const r = await fetch(FEEDER_URL, { signal: AbortSignal.timeout(5000) });
-    feederOnline = r.ok;
+    if (!favToken) {
+      feederOnline = false;
+    } else {
+      const r = await fetch(`${PUSH_SERVER}/feeder?check=1&token=${encodeURIComponent(favToken)}`, { signal: AbortSignal.timeout(6000) });
+      if (r.ok) {
+        const d = await r.json();
+        if (typeof d.lat === 'number') FEEDER_LAT = d.lat;
+        if (typeof d.lon === 'number') FEEDER_LON = d.lon;
+        feederOnline = !!d.online && FEEDER_LAT != null && FEEDER_LON != null;
+      } else {
+        feederOnline = false;
+      }
+    }
   } catch {
     feederOnline = false;
   }
@@ -1273,7 +1286,7 @@ function updateSourceBtn() {
     btn.style.background = '#0d2a1a';
     btn.style.borderColor = '#2a6a3a';
     btn.style.color = '#3f9';
-    if (lbl) lbl.textContent = 'Daten: Mein Feeder (feeder.adsb-radar.de) · Routen: adsbdb.com';
+    if (lbl) lbl.textContent = 'Daten: Mein Feeder · Routen: adsbdb.com';
   } else {
     btn.textContent = '📡 Mein Feeder';
     btn.style.background = '';
@@ -1317,7 +1330,7 @@ async function fetchData() {
     let resp;
     if (dataSource === 'feeder') {
       // Feeder-Modus: eigener Pi, fester Standort
-      resp = await fetch(FEEDER_URL, { signal: AbortSignal.timeout(10000) });
+      resp = await fetch(`${PUSH_SERVER}/feeder?token=${encodeURIComponent(favToken)}`, { signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error('feeder ' + resp.status);
     } else {
     // airplanes.live hat native CORS-Unterstützung → kein Proxy nötig, kein Caching-Problem

@@ -92,6 +92,17 @@ body {
 }
 #map-btn:hover { background: rgba(42,58,106,.95); color: #4af; }
 #map-btn.active { background: rgba(68,170,255,.28); border-color: #4af; color: #dff0ff; }
+#compass-btn {
+  position: absolute; top: 54px; right: 12px; z-index: 2;
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(20,32,60,.80); border: 1px solid #2a4a8a; color: #9cc0ee;
+  border-radius: 8px; cursor: pointer; font-size: 1rem; line-height: 1;
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  transition: background .12s, border-color .12s;
+}
+#compass-btn:hover { background: rgba(42,58,106,.95); color: #4af; }
+#compass-btn.active { background: rgba(68,170,255,.28); border-color: #4af; color: #dff0ff; }
 
 /* ── Desktop Layout (> 600px) ─────────────── */
 @media (min-width: 601px) {
@@ -520,7 +531,7 @@ body {
 </div>
 
 <div id="main">
-  <div id="radar-panel"><div id="radar-map"></div><canvas id="radar-canvas"></canvas><button id="map-btn" onclick="toggleMapMode()" title="Karte als Hintergrund ein/aus">🗺</button></div>
+  <div id="radar-panel"><div id="radar-map"></div><canvas id="radar-canvas"></canvas><button id="map-btn" onclick="toggleMapMode()" title="Karte als Hintergrund ein/aus">🗺</button><button id="compass-btn" onclick="toggleCompass()" title="Radar an Blickrichtung ausrichten" style="display:none;">🧭</button></div>
   <div id="list-panel">
     <div id="fav-panel">
       <button id="fav-toggle" onclick="toggleFavPanel()">⭐ FAVORITEN <span id="fav-count"></span></button>
@@ -840,6 +851,7 @@ async function init() {
   renderFavList();
   const _mb = document.getElementById('map-btn');
   if (_mb) _mb.classList.toggle('active', mapMode);
+  initCompassButton();
 
   // Aktivierungscode (Token) laden
   const input = document.getElementById('tg-chat-id');
@@ -863,6 +875,92 @@ let feederOnline  = false;    // wird beim Start geprüft
 let mapMode    = localStorage.getItem('radarMapMode') === '1';  // Karten-Hintergrund an/aus
 let radarMap   = null;
 let mapApplied = null;
+
+// ── KOMPASS-AUSRICHTUNG (nur iOS, nur Live-Modus) ──
+// Startet immer aus ("Normalbild" Nord-oben). Wird NICHT in localStorage gemerkt.
+let compassOn      = false;   // Feature aktiv?
+let headingRaw     = null;    // letzter Rohwert vom Sensor (0..360, im UZS gegen Norden)
+let headingSmooth  = null;    // geglätteter Wert (Low-Pass)
+let headingApplied = 0;       // Wert, mit dem aktuell gezeichnet wird (Schwelle 5°)
+const HEADING_THRESHOLD = 5;  // Grad: erst ab dieser Änderung neu ausrichten
+const HEADING_ALPHA     = 0.15; // Low-Pass-Gewicht (kleiner = träger/ruhiger)
+
+// Kürzeste Winkeldifferenz a->b in [-180,180]
+function angleDelta(a, b) {
+  let d = (b - a + 540) % 360 - 180;
+  return d;
+}
+
+// Heading nur anwenden, wenn Live-Modus und nicht auf Karte (Leaflet dreht nicht mit)
+function activeHeading() {
+  if (!compassOn) return 0;
+  if (dataSource === 'feeder') return 0;
+  if (mapMode) return 0;
+  return headingApplied;
+}
+
+function onDeviceOrientation(e) {
+  // iOS liefert webkitCompassHeading: 0=Nord, im Uhrzeigersinn. Genauigkeit <0 = unkalibriert.
+  let h = null;
+  if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
+    if (typeof e.webkitCompassAccuracy === 'number' && e.webkitCompassAccuracy < 0) return; // unkalibriert -> ignorieren
+    h = e.webkitCompassHeading;
+  }
+  if (h == null) return;
+  headingRaw = h;
+  // Low-Pass über kürzeste Winkeldistanz (sauber über den 360/0-Übergang)
+  if (headingSmooth == null) {
+    headingSmooth = h;
+  } else {
+    headingSmooth = (headingSmooth + HEADING_ALPHA * angleDelta(headingSmooth, h) + 360) % 360;
+  }
+  // Schwelle: erst neu ausrichten, wenn sich der geglättete Wert deutlich geändert hat
+  if (Math.abs(angleDelta(headingApplied, headingSmooth)) >= HEADING_THRESHOLD) {
+    headingApplied = headingSmooth;
+    drawRadar();
+  }
+}
+
+async function toggleCompass() {
+  if (compassOn) {
+    // ausschalten -> zurück ins Normalbild
+    compassOn = false;
+    window.removeEventListener('deviceorientation', onDeviceOrientation);
+    headingSmooth = null; headingApplied = 0; headingRaw = null;
+    const b = document.getElementById('compass-btn');
+    if (b) b.classList.remove('active');
+    showToast('🧭 Ausrichtung: Norden oben');
+    drawRadar();
+    return;
+  }
+  // einschalten -> iOS-Permission aus echtem Tap heraus anfragen
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const res = await DeviceOrientationEvent.requestPermission();
+      if (res !== 'granted') { showToast('🧭 Kompass-Zugriff abgelehnt'); return; }
+    }
+  } catch (err) {
+    showToast('🧭 Kompass nicht verfügbar'); return;
+  }
+  compassOn = true;
+  headingSmooth = null; headingApplied = 0;
+  window.addEventListener('deviceorientation', onDeviceOrientation);
+  const b = document.getElementById('compass-btn');
+  if (b) b.classList.add('active');
+  showToast('🧭 Radar folgt der Blickrichtung');
+  drawRadar();
+}
+
+// Kompass-Knopf nur auf iOS mit Sensor-Unterstützung zeigen
+function initCompassButton() {
+  const b = document.getElementById('compass-btn');
+  if (!b) return;
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const hasOrientation = typeof DeviceOrientationEvent !== 'undefined';
+  if (isIOS && hasOrientation) b.style.display = 'flex';
+}
 
 let favToken = localStorage.getItem('fav_token') || '';
 
@@ -981,12 +1079,21 @@ function drawRadar() {
   const cx = W/2, cy = H/2, R = Math.min(cx,cy) - 4;
   const radiusNm = parseInt(document.getElementById('radius-input').value) || 40;
   const onMap = mapMode;
+  const hdg = activeHeading();            // 0 wenn Kompass aus / Feeder / Karte
+  const hdgRad = hdg * Math.PI / 180;
 
   ctx.clearRect(0, 0, W, H);
   if (!onMap) {
     ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2);
     ctx.fillStyle = '#06090f'; ctx.fill();
   }
+
+  // Ab hier dreht sich die Szene um -heading (Blickrichtung oben).
+  // Text wird einzeln gegenrotiert, damit er lesbar bleibt.
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(-hdgRad);
+  ctx.translate(-cx, -cy);
 
   // rings
   [.25,.5,.75,1].forEach((f,i) => {
@@ -995,9 +1102,14 @@ function drawRadar() {
                             : (i===3 ? '#1a2d55' : '#0d1830');
     ctx.lineWidth = i===3 ? 1.5 : .7; ctx.stroke();
     if (f < 1) {
+      // nm-Label gegenrotieren, damit es waagerecht bleibt
+      ctx.save();
+      ctx.translate(cx+R*f, cy);
+      ctx.rotate(hdgRad);
       ctx.fillStyle = onMap ? 'rgba(180,205,235,.95)' : '#3a5090';
-      ctx.font = '11px Courier New';
-      ctx.fillText(`${Math.round(radiusNm*f)}nm`, cx+R*f+3, cy-2);
+      ctx.font = '11px Courier New'; ctx.textAlign='left';
+      ctx.fillText(`${Math.round(radiusNm*f)}nm`, 3, -2);
+      ctx.restore();
     }
   });
 
@@ -1009,11 +1121,17 @@ function drawRadar() {
   });
   ctx.setLineDash([]);
 
-  // cardinals
-  ctx.fillStyle = onMap ? '#9cc0ee' : '#4a70a0'; ctx.font = 'bold 13px Courier New'; ctx.textAlign='center';
-  ctx.fillText('N',cx,cy-R+13); ctx.fillText('S',cx,cy+R-3);
-  ctx.textAlign='left'; ctx.fillText('E',cx+R-13,cy+4);
-  ctx.fillText('W',cx-R+2,cy+4); ctx.textAlign='center';
+  // cardinals — sitzen an der echten Himmelsrichtung (drehen mit), Buchstabe gegenrotiert
+  ctx.fillStyle = onMap ? '#9cc0ee' : '#4a70a0'; ctx.font = 'bold 13px Courier New';
+  [['N',0,-R+13],['S',0,R-3],['E',R-13,4],['W',-R+2,4]].forEach(([ch,dx,dy])=>{
+    ctx.save();
+    ctx.translate(cx+dx, cy+dy);
+    ctx.rotate(hdgRad);
+    ctx.textAlign='center';
+    ctx.fillText(ch, 0, 0);
+    ctx.restore();
+  });
+  ctx.textAlign='center';
 
   // alert ring
   const alertNm = parseInt(document.getElementById('alert-input').value) || 20;
@@ -1050,15 +1168,22 @@ function drawRadar() {
     ctx.restore();
 
     const label = (ac.flight||ac.hex||'').trim();
+    // Label gegenrotieren, damit es waagerecht lesbar bleibt
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(hdgRad);
     ctx.globalAlpha=isSel?1:.7;
     ctx.fillStyle=isSel?'#fff':color;
     ctx.font=isSel?'bold 11px Courier New':'10px Courier New';
     ctx.textAlign='left';
-    ctx.fillText(label, x+sz+2, y+4);
+    ctx.fillText(label, sz+2, 4);
     ctx.globalAlpha=1;
+    ctx.restore();
   });
 
-  // me
+  ctx.restore(); // Ende Szenen-Rotation
+
+  // me — Mittelpunkt, dreht sich nicht
   ctx.beginPath(); ctx.arc(cx,cy,5,0,Math.PI*2);
   ctx.fillStyle='#4af'; ctx.fill();
   ctx.beginPath(); ctx.arc(cx,cy,9,0,Math.PI*2);

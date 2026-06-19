@@ -1536,7 +1536,10 @@ async function fetchData() {
     document.getElementById('last-update').textContent = 'Update: '+new Date().toLocaleTimeString('de-DE');
 
 
-    if (selectedHex && aircraft[selectedHex]) selectAircraft(selectedHex);
+    if (selectedHex) {
+      if (aircraft[selectedHex]) renderDetail(selectedHex, false);
+      else { selectedHex = null; document.getElementById('detail-panel').classList.remove('visible'); renderList(); drawRadar(); }
+    }
 
     // Routen nachladen (Airline-Name kommt dabei automatisch mit)
     fetchAllRoutes();
@@ -1607,9 +1610,20 @@ async function selectAircraft(hex) {
   selectedHex = hex===selectedHex ? null : hex;
   renderList(); drawRadar();
 
-  const ac = aircraft[selectedHex];
+  if (!selectedHex) {
+    document.getElementById('detail-panel').classList.remove('visible');
+    return;
+  }
+  renderDetail(selectedHex, true);
+}
+
+// Befuellt das Detail-Panel mit aktuellen Daten, OHNE die Auswahl umzuschalten.
+// Wird sowohl von selectAircraft als auch bei jedem Refresh aufgerufen.
+// isNew=true nur beim echten Antippen -> dann erst Foto/Route neu laden.
+async function renderDetail(hex, isNew) {
+  const ac = aircraft[hex];
   const panel = document.getElementById('detail-panel');
-  if (!ac || !selectedHex) { panel.classList.remove('visible'); return; }
+  if (!ac || !hex) { panel.classList.remove('visible'); return; }
 
   const call = (ac.flight||'').trim()||ac.hex;
   const airline = getAirline(ac.flight||'', ac.r);
@@ -1641,6 +1655,10 @@ async function selectAircraft(hex) {
   document.getElementById('dp-rssi').textContent    = ac.rssi!=null? ac.rssi+' dBFS'               : '–';
 
   panel.classList.add('visible');
+
+  // Foto/Route sind hex-gebunden und aendern sich nicht zwischen Refreshes.
+  // Nur beim echten Antippen neu laden, sonst flackert das Bild alle 2s.
+  if (!isNew) return;
 
   // Flugzeugfoto laden
   loadAircraftPhoto(hex, ac.r);

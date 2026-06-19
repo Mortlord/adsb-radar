@@ -1473,7 +1473,9 @@ async function fetchData() {
   isFetching = true;
   const btn = document.getElementById('refresh-btn');
   btn.disabled = true;
-  document.getElementById('spinner').classList.add('visible');
+  // Spinner nur beim ersten Laden zeigen, nicht bei jedem Auto-Refresh
+  const firstLoad = Object.keys(aircraft).length === 0;
+  if (firstLoad) document.getElementById('spinner').classList.add('visible');
   const radius = parseInt(document.getElementById('radius-input').value)||40;
 
   try {

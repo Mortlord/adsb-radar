@@ -73,6 +73,7 @@ body {
   box-shadow: 0 0 30px rgba(0,100,255,.15), 0 0 60px rgba(0,50,150,.08);
   touch-action: none;
   position: relative; z-index: 1;
+  cursor: pointer;
 }
 #radar-map {
   position: absolute; z-index: 0; display: none;
@@ -769,12 +770,13 @@ let myLat = null, myLon = null;
 let aircraft = {};
 let knownHexes = new Set();
 let selectedHex = null;
+let radarHits = [];   // {hex,x,y} je gezeichnetem Flugzeug, fuer Tap/Klick-Treffer
 let routeCache = {};
 let operatorCache = {};
 let isFetching = false;
 let myTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone; // Fallback: Gerätezeitzone
 
-const REFRESH_MS = 60000;
+const REFRESH_MS = 5000;
 
 // ══════════════════════════════════════════════
 // FAVORITEN
@@ -1030,6 +1032,22 @@ function getCity(icao) {
 const canvas = document.getElementById('radar-canvas');
 const ctx = canvas.getContext('2d');
 
+// Tap/Klick auf ein Flugzeug im Radar -> auswaehlen (gleiche Logik wie Listenklick).
+// Grosszuegige Hitbox fuer Touch; bei mehreren Treffern das naechstgelegene.
+const RADAR_HIT_RADIUS = 24;
+canvas.addEventListener('pointerup', (e) => {
+  if (!radarHits.length) return;
+  const rect = canvas.getBoundingClientRect();
+  const px = e.clientX - rect.left;
+  const py = e.clientY - rect.top;
+  let best = null, bestD = RADAR_HIT_RADIUS;
+  for (const h of radarHits) {
+    const d = Math.hypot(h.x - px, h.y - py);
+    if (d <= bestD) { bestD = d; best = h; }
+  }
+  if (best) selectAircraft(best.hex);
+});
+
 function resizeCanvas() {
   const panel = document.getElementById('radar-panel');
   const size = Math.min(panel.clientWidth, panel.clientHeight) - 24;
@@ -1143,6 +1161,7 @@ function drawRadar() {
   }
 
   // aircraft
+  radarHits = [];
   Object.values(aircraft).forEach(ac => {
     if (ac.lat==null||myLat==null) return;
     const cLat = dataSource==='feeder' ? FEEDER_LAT : myLat;
@@ -1153,6 +1172,12 @@ function drawRadar() {
     const frac = dst/radiusNm;
     const rad = (brg-90)*Math.PI/180;
     const x = cx+R*frac*Math.cos(rad), y = cy+R*frac*Math.sin(rad);
+    // Bildschirmposition unter Beruecksichtigung der Szenen-Rotation (-hdgRad)
+    // um den Mittelpunkt cx,cy. Wird fuer Tap/Klick-Treffer gebraucht.
+    const ca = Math.cos(-hdgRad), sa = Math.sin(-hdgRad);
+    const sx = cx + (x-cx)*ca - (y-cy)*sa;
+    const sy = cy + (x-cx)*sa + (y-cy)*ca;
+    radarHits.push({ hex: ac.hex, x: sx, y: sy });
     const color = altColor(ac.alt_baro);
     const isSel = ac.hex===selectedHex;
     const sz = isSel?9:5.5;

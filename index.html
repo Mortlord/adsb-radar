@@ -1484,13 +1484,13 @@ function updateSourceBtn() {
     btn.style.cursor = 'pointer';
   }
   if (dataSource === 'feeder') {
-    btn.textContent = '📡 Mein Feeder';
+    btn.textContent = '📡 My Feed';
     btn.style.background = '#0d2a1a';
     btn.style.borderColor = '#2a6a3a';
     btn.style.color = '#3f9';
     if (lbl) lbl.textContent = 'Daten: Mein Feeder · Routen: adsbdb.com';
   } else if (dataSource === 'fixpoint') {
-    btn.textContent = '📍 Beobachtungspunkt';
+    btn.textContent = '📍 Fixpunkt';
     btn.style.background = '#2a1a0d';
     btn.style.borderColor = '#6a4a2a';
     btn.style.color = '#fc9';
@@ -1513,7 +1513,7 @@ function toggleSource() {
   if (dataSource === 'feeder') {
     showToast('📡 Feeder-Modus: Karte auf Freiburg zentriert');
   } else if (dataSource === 'fixpoint') {
-    showToast('📍 Beobachtungspunkt: Karte auf alte Heimat zentriert');
+    showToast('📍 Fixpunkt: Karte auf alte Heimat zentriert');
   } else {
     showToast('🌍 Live-Feed: Karte auf deinen Standort');
   }

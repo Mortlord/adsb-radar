@@ -1210,7 +1210,10 @@ function drawRadar() {
     if (ac.lat==null||myLat==null) return;
     const cLat = centerLat();
     const cLon = centerLon();
-    const dst = ac.dst ?? haversine(cLat,cLon,ac.lat,ac.lon);
+    // Im Feeder-Modus ac.dst (kommt von airplanes.live) ignorieren und aus dem
+    // Pi-Standort neu berechnen – konsistent mit renderList().
+    const rawDst = dataSource==='feeder' ? null : ac.dst;
+    const dst = rawDst ?? haversine(cLat,cLon,ac.lat,ac.lon);
     if (dst > radiusNm) return;
     const brg = bearingTo(cLat,cLon,ac.lat,ac.lon);
     const frac = dst/radiusNm;
@@ -1607,7 +1610,9 @@ async function fetchData() {
         knownHexes.add(ac.hex);
         if (prevHexes.size > 0) {
           // Toast nur bei echtem Neuzugang (nicht beim initialen Load)
-          const dst = ac.dst ?? (ac.lat!=null ? haversine(radarLat,radarLon,ac.lat,ac.lon) : 999);
+          // Im Feeder-Modus ac.dst ignorieren, aus Pi-Standort rechnen (wie renderList/Radar)
+          const rawDst = dataSource==='feeder' ? null : ac.dst;
+          const dst = rawDst ?? (ac.lat!=null ? haversine(radarLat,radarLon,ac.lat,ac.lon) : 999);
           const call = (ac.flight||ac.hex||'').trim();
           const airline = getAirline(ac.flight, ac.r);
           if (dst <= alertNm) {

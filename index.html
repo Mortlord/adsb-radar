@@ -524,7 +524,7 @@ body {
     <label>Radius: <input type="number" id="radius-input" value="40" min="10" max="250"> nm</label>
     <label>Alert: <input type="number" id="alert-input" value="20" min="1" max="100"> nm</label>
     <div style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;">
-      <button id="source-btn" onclick="toggleSource()" title="Datenquelle umschalten" style="opacity:0.4;cursor:not-allowed;" disabled>📡 Mein Feeder</button>
+      <button id="source-btn" onclick="toggleSource()" title="Datenquelle umschalten" style="opacity:0.4;cursor:not-allowed;" disabled>🌍 Live-Feed</button>
       <button id="reset-btn" onclick="resetRadius()" title="Radius zurücksetzen">↺</button>
       <button id="refresh-btn" onclick="fetchData()"><span class="refresh-label">⟳ Refresh</span><span class="refresh-icon">⟳</span></button>
     </div>
@@ -871,9 +871,14 @@ const PUSH_SERVER = 'https://web-production-a6fc8.up.railway.app';
 // stehen NICHT mehr im öffentlichen Quelltext, sie werden nur für den Owner geladen.
 let FEEDER_LAT = null;
 let FEEDER_LON = null;
+// Fixer Beobachtungspunkt (alte Heimatadresse). Koordinaten kommen vom Backend
+// (/fixpoint), stehen NICHT im öffentlichen Quelltext.
+let FIXPOINT_LAT = null;
+let FIXPOINT_LON = null;
 
-let dataSource    = 'live';   // 'live' | 'feeder'
+let dataSource    = 'live';   // 'live' | 'feeder' | 'fixpoint'
 let feederOnline  = false;    // wird beim Start geprüft
+let fixpointOnline = false;   // wird beim Start geprüft
 let mapMode    = localStorage.getItem('radarMapMode') === '1';  // Karten-Hintergrund an/aus
 let radarMap   = null;
 let mapApplied = null;
@@ -896,9 +901,22 @@ function angleDelta(a, b) {
 // Heading nur anwenden, wenn Live-Modus und nicht auf Karte (Leaflet dreht nicht mit)
 function activeHeading() {
   if (!compassOn) return 0;
-  if (dataSource === 'feeder') return 0;
+  if (dataSource !== 'live') return 0;   // Feeder + Fixpunkt: immer Nord-oben
   if (mapMode) return 0;
   return headingApplied;
+}
+
+// Zentrum des Radars/der Karte je nach Modus.
+// Feeder = Pi-Standort, Fixpunkt = alte Heimat, sonst eigener GPS-Standort.
+function centerLat() {
+  if (dataSource === 'feeder')   return FEEDER_LAT;
+  if (dataSource === 'fixpoint') return FIXPOINT_LAT;
+  return myLat;
+}
+function centerLon() {
+  if (dataSource === 'feeder')   return FEEDER_LON;
+  if (dataSource === 'fixpoint') return FIXPOINT_LON;
+  return myLon;
 }
 
 function onDeviceOrientation(e) {
@@ -1164,8 +1182,8 @@ function drawRadar() {
   radarHits = [];
   Object.values(aircraft).forEach(ac => {
     if (ac.lat==null||myLat==null) return;
-    const cLat = dataSource==='feeder' ? FEEDER_LAT : myLat;
-    const cLon = dataSource==='feeder' ? FEEDER_LON : myLon;
+    const cLat = centerLat();
+    const cLon = centerLon();
     const dst = ac.dst ?? haversine(cLat,cLon,ac.lat,ac.lon);
     if (dst > radiusNm) return;
     const brg = bearingTo(cLat,cLon,ac.lat,ac.lon);
@@ -1232,8 +1250,8 @@ function initRadarMap() {
 }
 
 function radarMapCenter() {
-  const cLat = dataSource==='feeder' ? FEEDER_LAT : myLat;
-  const cLon = dataSource==='feeder' ? FEEDER_LON : myLon;
+  const cLat = centerLat();
+  const cLon = centerLon();
   return (cLat!=null && cLon!=null) ? [cLat, cLon] : null;
 }
 
@@ -1412,33 +1430,73 @@ async function checkFeederStatus() {
   } catch {
     feederOnline = false;
   }
-  const btn = document.getElementById('source-btn');
-  if (feederOnline) {
-    btn.disabled = false;
-    btn.style.opacity = '1';
-    btn.style.cursor = 'pointer';
-  } else {
-    btn.disabled = true;
-    btn.style.opacity = '0.4';
-    btn.style.cursor = 'not-allowed';
-    if (dataSource === 'feeder') {
-      dataSource = 'live';
-      updateSourceBtn();
+  // Fixpunkt-Verfügbarkeit prüfen (eigener Endpoint, owner-token-gated)
+  try {
+    if (!favToken) {
+      fixpointOnline = false;
+    } else {
+      const r = await fetch(`${PUSH_SERVER}/fixpoint?check=1&token=${encodeURIComponent(favToken)}`, { signal: AbortSignal.timeout(6000) });
+      if (r.ok) {
+        const d = await r.json();
+        if (d.ok && typeof d.lat === 'number' && typeof d.lon === 'number') {
+          FIXPOINT_LAT = d.lat;
+          FIXPOINT_LON = d.lon;
+          fixpointOnline = true;
+        } else {
+          fixpointOnline = false;
+        }
+      } else {
+        fixpointOnline = false;
+      }
     }
+  } catch {
+    fixpointOnline = false;
   }
+  // Aktiven Modus zurücksetzen, falls dessen Quelle weggefallen ist
+  if (dataSource === 'feeder' && !feederOnline)     { dataSource = 'live'; }
+  if (dataSource === 'fixpoint' && !fixpointOnline) { dataSource = 'live'; }
+  updateSourceBtn();
 }
 
+// Verfügbare Modi in fester Reihenfolge; 'live' immer vorhanden.
+function availableModes() {
+  const m = ['live'];
+  if (feederOnline)   m.push('feeder');
+  if (fixpointOnline) m.push('fixpoint');
+  return m;
+}
+
+// Beschriftung/Status des Quellen-Buttons. Der Button zeigt den AKTUELLEN Modus;
+// ein Tap schaltet auf den nächsten verfügbaren weiter.
 function updateSourceBtn() {
   const btn = document.getElementById('source-btn');
   const lbl = document.getElementById('source-label');
+  if (!btn) return;
+  const modes = availableModes();
+  // Nur ein Modus verfügbar -> Button deaktivieren
+  if (modes.length <= 1) {
+    btn.disabled = true;
+    btn.style.opacity = '0.4';
+    btn.style.cursor = 'not-allowed';
+  } else {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+  }
   if (dataSource === 'feeder') {
-    btn.textContent = '🌍 Live-Feed';
+    btn.textContent = '📡 Mein Feeder';
     btn.style.background = '#0d2a1a';
     btn.style.borderColor = '#2a6a3a';
     btn.style.color = '#3f9';
     if (lbl) lbl.textContent = 'Daten: Mein Feeder · Routen: adsbdb.com';
+  } else if (dataSource === 'fixpoint') {
+    btn.textContent = '📍 Beobachtungspunkt';
+    btn.style.background = '#2a1a0d';
+    btn.style.borderColor = '#6a4a2a';
+    btn.style.color = '#fc9';
+    if (lbl) lbl.textContent = 'Daten: airplanes.live (Fixpunkt) · Routen: adsbdb.com';
   } else {
-    btn.textContent = '📡 Mein Feeder';
+    btn.textContent = '🌍 Live-Feed';
     btn.style.background = '';
     btn.style.borderColor = '';
     btn.style.color = '';
@@ -1447,15 +1505,19 @@ function updateSourceBtn() {
 }
 
 function toggleSource() {
-  if (!feederOnline) return;
-  dataSource = dataSource === 'live' ? 'feeder' : 'live';
+  const modes = availableModes();
+  if (modes.length <= 1) return;
+  const idx = modes.indexOf(dataSource);
+  dataSource = modes[(idx + 1) % modes.length];
   updateSourceBtn();
-  // Karte zentrieren
   if (dataSource === 'feeder') {
     showToast('📡 Feeder-Modus: Karte auf Freiburg zentriert');
+  } else if (dataSource === 'fixpoint') {
+    showToast('📍 Beobachtungspunkt: Karte auf alte Heimat zentriert');
   } else {
     showToast('🌍 Live-Feed: Karte auf deinen Standort');
   }
+  mapApplied = null;
   fetchData();
 }
 
@@ -1484,6 +1546,10 @@ async function fetchData() {
       // Feeder-Modus: eigener Pi, fester Standort
       resp = await fetch(`${PUSH_SERVER}/feeder?token=${encodeURIComponent(favToken)}`, { signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error('feeder ' + resp.status);
+    } else if (dataSource === 'fixpoint') {
+      // Fixpunkt-Modus: Live-Feed über Backend, zentriert auf alte Heimat (Koordinaten im Backend)
+      resp = await fetch(`${PUSH_SERVER}/fixpoint?token=${encodeURIComponent(favToken)}&radius=${radius}`, { signal: AbortSignal.timeout(10000) });
+      if (!resp.ok) throw new Error('fixpoint ' + resp.status);
     } else {
     // airplanes.live hat native CORS-Unterstützung → kein Proxy nötig, kein Caching-Problem
     // Fallback auf corsproxy.io falls direkt blockiert
@@ -1498,11 +1564,11 @@ async function fetchData() {
     }
     if (!resp.ok) throw new Error(`HTTP ${resp.status} (proxy)`);
     const data = await resp.json();
-    // Feeder liefert data.aircraft[], airplanes.live liefert data.ac[]
+    // Feeder liefert data.aircraft[], airplanes.live + Fixpunkt liefern data.ac[]
     const acList = data.ac || data.aircraft || [];
-    // Im Feeder-Modus: Radar auf Pi-Standort zentrieren
-    const radarLat = dataSource === 'feeder' ? FEEDER_LAT : myLat;
-    const radarLon = dataSource === 'feeder' ? FEEDER_LON : myLon;
+    // Radar-Zentrum je nach Modus
+    const radarLat = centerLat();
+    const radarLon = centerLon();
     const alertNm = parseInt(document.getElementById('alert-input').value)||20;
     const prevHexes = new Set(knownHexes);
     const fresh = {};
@@ -1515,7 +1581,7 @@ async function fetchData() {
         knownHexes.add(ac.hex);
         if (prevHexes.size > 0) {
           // Toast nur bei echtem Neuzugang (nicht beim initialen Load)
-          const dst = ac.dst ?? (ac.lat!=null ? haversine(myLat,myLon,ac.lat,ac.lon) : 999);
+          const dst = ac.dst ?? (ac.lat!=null ? haversine(radarLat,radarLon,ac.lat,ac.lon) : 999);
           const call = (ac.flight||ac.hex||'').trim();
           const airline = getAirline(ac.flight, ac.r);
           if (dst <= alertNm) {
@@ -1564,8 +1630,8 @@ async function fetchData() {
 function renderList() {
   const radiusNm = parseInt(document.getElementById('radius-input').value)||40;
   const alertNm  = parseInt(document.getElementById('alert-input').value)||20;
-  const cLat = dataSource==='feeder' ? FEEDER_LAT : myLat;
-  const cLon = dataSource==='feeder' ? FEEDER_LON : myLon;
+  const cLat = centerLat();
+  const cLon = centerLon();
   const acArr = Object.values(aircraft)
     .filter(ac => ac.lat!=null||ac.dst!=null)
     .map(ac => {

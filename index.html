@@ -1595,32 +1595,15 @@ async function fetchData() {
     const data = await resp.json();
     // Feeder liefert data.aircraft[], airplanes.live + Fixpunkt liefern data.ac[]
     const acList = data.ac || data.aircraft || [];
-    // Radar-Zentrum je nach Modus
-    const radarLat = centerLat();
-    const radarLon = centerLon();
-    const alertNm = parseInt(document.getElementById('alert-input').value)||20;
     const prevHexes = new Set(knownHexes);
     const fresh = {};
 
     acList.forEach(ac => {
       fresh[ac.hex] = ac;
-      // Besuch zählen: Flugzeug war weder im letzten Fetch noch beim letzten bekannten
-      // Radius-Zustand (aus localStorage, max. 10 Min. alt) im Radius
+      // Neuzugang nur für die Buchhaltung erfassen (knownHexes); KEINE Benachrichtigung
+      // über neue Flugzeuge in der App (bewusst entfernt – nur Telegram-Alerts bleiben).
       if (!prevHexes.has(ac.hex)) {
         knownHexes.add(ac.hex);
-        if (prevHexes.size > 0) {
-          // Toast nur bei echtem Neuzugang (nicht beim initialen Load)
-          // Im Feeder-Modus ac.dst ignorieren, aus Pi-Standort rechnen (wie renderList/Radar)
-          const rawDst = dataSource==='feeder' ? null : ac.dst;
-          const dst = rawDst ?? (ac.lat!=null ? haversine(radarLat,radarLon,ac.lat,ac.lon) : 999);
-          const call = (ac.flight||ac.hex||'').trim();
-          const airline = getAirline(ac.flight, ac.r);
-          if (dst <= alertNm) {
-            showToast(`🚨 ${call}${airline?' – '+airline:''} – ${dst.toFixed(1)} nm – ${fmtAlt(ac.alt_baro)}`, true);
-          } else {
-            showToast(`✈ Neu: ${call}${airline?' ('+airline+')':''}  ${dst.toFixed(1)} nm`);
-          }
-        }
       }
     });
     // Besuche + aktuellen Radius-Inhalt persistieren
@@ -1835,12 +1818,10 @@ function closeDetail() {
 // TOAST NOTIFICATIONS
 // ══════════════════════════════════════════════
 function showToast(msg, isAlert=false) {
-  const container = document.getElementById('toast-container');
-  const t = document.createElement('div');
-  t.className = 'toast' + (isAlert ? ' alert' : '');
-  t.textContent = msg;
-  container.appendChild(t);
-  setTimeout(() => t.remove(), 5100);
+  // Toast-Benachrichtigungen in der privaten App bewusst deaktiviert.
+  // (Keine Hinweise über neue Flugzeuge, Moduswechsel oder Kompass.)
+  // Telegram-Alerts laufen davon unberührt serverseitig weiter.
+  return;
 }
 
 // ══════════════════════════════════════════════

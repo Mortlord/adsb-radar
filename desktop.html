@@ -351,7 +351,15 @@ function loadCfg(){
   try { c = JSON.parse(localStorage.getItem("adsb_desktop_cfg") || "{}"); } catch(e){}
   return { ...DEFAULTS, ...c };
 }
-function saveCfg(c){ localStorage.setItem("adsb_desktop_cfg", JSON.stringify(c)); }
+function saveCfg(c){
+  try {
+    localStorage.setItem("adsb_desktop_cfg", JSON.stringify(c));
+    // Verifizieren, dass es wirklich persistiert wurde
+    return localStorage.getItem("adsb_desktop_cfg") === JSON.stringify(c);
+  } catch(e){
+    return false;
+  }
+}
 let cfg = loadCfg();
 
 /* ---- helpers --------------------------------------------------------- */
@@ -727,16 +735,28 @@ function openSettings(){
 $("gear").onclick = openSettings;
 $("settingsClose").onclick = ()=>$("settings").classList.remove("open");
 $("cfgSave").onclick = ()=>{
-  cfg = {
-    base: $("cfgBase").value.trim().replace(/\/$/,""),
-    lat: parseFloat($("cfgLat").value) || DEFAULTS.lat,
-    lon: parseFloat($("cfgLon").value) || DEFAULTS.lon,
-    radius: parseInt($("cfgRadius").value) || DEFAULTS.radius,
-    interval: parseInt($("cfgInterval").value) || DEFAULTS.interval
+  // Leere/ungültige Eingabe behält den bisherigen Wert (statt still auf Default zu springen)
+  const numOr = (id, prev, parser)=>{
+    const raw = $(id).value.trim();
+    if(raw==="") return prev;
+    const v = parser(raw);
+    return isNaN(v) ? prev : v;
   };
-  saveCfg(cfg);
+  const next = {
+    base: $("cfgBase").value.trim().replace(/\/$/,"") || cfg.base,
+    lat: numOr("cfgLat", cfg.lat, parseFloat),
+    lon: numOr("cfgLon", cfg.lon, parseFloat),
+    radius: Math.max(1, numOr("cfgRadius", cfg.radius, v=>parseInt(v,10))),
+    interval: Math.max(2, numOr("cfgInterval", cfg.interval, v=>parseInt(v,10)))
+  };
+  cfg = next;
+  const ok = saveCfg(cfg);
   airlines=null;
   $("settings").classList.remove("open");
+  if(!ok){
+    banner("Hinweis: Einstellungen konnten nicht dauerhaft gespeichert werden (localStorage blockiert) — sie gelten nur für diese Sitzung.");
+    setTimeout(()=>banner(null), 6000);
+  }
   start();
 };
 

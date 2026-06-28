@@ -447,12 +447,19 @@ function startGps(){
 
 function stopGps(){
   if(gpsWatchId!==null){ navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId=null; }
-  lastGeo = { lat:null, lon:null };
-  $("addrRow").style.display = "none";
 }
 
 function applyGpsMode(){
-  if(cfg.gps) startGps(); else stopGps();
+  if(cfg.gps){
+    startGps();
+  } else {
+    stopGps();
+    // Fester Standort: Adresse einmalig auflösen, sobald er sich geändert hat
+    if(metersBetween(cfg.lat,cfg.lon,lastGeo.lat,lastGeo.lon) > 100){
+      lastGeo = { lat:+cfg.lat, lon:+cfg.lon };
+      reverseGeocode(+cfg.lat,+cfg.lon);
+    }
+  }
   updateCenterLabel();
 }
 

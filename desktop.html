@@ -296,11 +296,8 @@
       </div>
       <div class="radarbox"><canvas id="radar"></canvas></div>
       <div class="rfoot">
-        <span class="mono" id="centerLbl">CENTER 47.999, 7.842</span>
+        <span class="mono"><span id="centerLbl">CENTER 47.999, 7.842</span><span id="addrLbl" style="color:var(--txt-mut);margin-left:14px;letter-spacing:.04em"></span></span>
         <span id="radiusLbl">RANGE 60 NM</span>
-      </div>
-      <div class="rfoot" id="addrRow" style="display:none">
-        <span class="mono" id="addrLbl" style="color:var(--txt-dim);font-size:11px;letter-spacing:.04em">—</span>
       </div>
     </section>
   </div>
@@ -410,11 +407,9 @@ async function reverseGeocode(lat,lon){
       [a.postcode, a.city||a.town||a.village||a.municipality].filter(Boolean).join(' ')
     ].filter(Boolean);
     const txt = parts.join(', ') || d.display_name || '—';
-    $("addrLbl").textContent = txt;
-    $("addrRow").style.display = "flex";
+    $("addrLbl").textContent = "· " + txt;
   }catch(e){
-    $("addrLbl").textContent = "Adresse nicht verfügbar";
-    $("addrRow").style.display = "flex";
+    $("addrLbl").textContent = "· Adresse nicht verfügbar";
   }
 }
 

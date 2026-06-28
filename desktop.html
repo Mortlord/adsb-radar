@@ -397,18 +397,12 @@ function metersBetween(lat1,lon1,lat2,lon2){
 
 async function reverseGeocode(lat,lon){
   try{
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2`
-              + `&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
-    const res = await fetch(url, { headers:{ 'Accept-Language':'de' } });
+    // Server-Endpoint statt Nominatim direkt: liefert für eine Koordinate über alle
+    // Geräte hinweg dieselbe (gecachte) Adresse -> kein Springen der Hausnummer mehr.
+    const res = await fetch(`${cfg.base}/geocode?lat=${lat}&lon=${lon}`,{cache:"no-store"});
     if(!res.ok) throw new Error("HTTP "+res.status);
     const d = await res.json();
-    const a = d.address || {};
-    const parts = [
-      [a.road, a.house_number].filter(Boolean).join(' '),
-      [a.postcode, a.city||a.town||a.village||a.municipality].filter(Boolean).join(' ')
-    ].filter(Boolean);
-    const txt = parts.join(', ') || d.display_name || '—';
-    $("addrLbl").textContent = "· " + txt;
+    $("addrLbl").textContent = d.address ? ("· " + d.address) : "";
   }catch(e){
     $("addrLbl").textContent = "· Adresse nicht verfügbar";
   }

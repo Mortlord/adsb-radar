@@ -129,10 +129,13 @@
   .acmeta .v b{color:var(--txt);font-weight:700}
 
   .typestrip{
-    margin-top:auto;padding-top:22px;
+    margin-top:18px;padding-top:0;
     display:flex;align-items:center;gap:14px;
     font-size:13px;color:var(--txt-mut);letter-spacing:.04em;
   }
+  .descline{margin-top:22px}
+  .descline .big{font-size:23px;font-weight:700;color:var(--txt);letter-spacing:.01em;line-height:1.15}
+  .descline .op{font-size:12px;letter-spacing:.14em;color:var(--txt-mut);margin-top:5px;min-height:14px}
   .typestrip .badge{
     font-size:11px;letter-spacing:.18em;color:var(--cyan);
     border:1px solid var(--cyan-dim);border-radius:6px;padding:3px 8px;font-weight:600;
@@ -272,6 +275,11 @@
 
       <div class="acmeta" id="acmeta"></div>
 
+      <div class="descline" id="descline">
+        <div class="big">—</div>
+        <div class="op"></div>
+      </div>
+
       <div class="typestrip" id="typestrip"></div>
 
       <div class="photo" id="photo">
@@ -376,6 +384,10 @@ function norm(a, cLat, cLon){
     reg: (a.r ?? a.reg ?? a.registration ?? "").trim(),
     type: (a.t ?? a.type ?? a.aircraftType ?? "").trim(),
     desc: (a.desc ?? a.typeDesc ?? "").trim(),
+    ownOp: (a.ownOp ?? a.operator ?? "").trim(),
+    year: (a.year ?? "").toString().trim(),
+    squawk: (a.squawk ?? "").toString().trim(),
+    cat: (a.category ?? a.cat ?? "").toString().trim(),
     alt: num(a.alt_baro ?? a.altitude ?? a.alt),
     gs: num(a.gs ?? a.speed ?? a.groundspeed),
     track: num(a.track ?? a.heading ?? a.trak),
@@ -433,7 +445,12 @@ async function getRoute(cs){
   if(cs in routeCache) return routeCache[cs];
   try{
     const r = await fetch(`${cfg.base}/route?callsign=${encodeURIComponent(cs)}`,{cache:"no-store"});
-    if(r.ok){ const j = await r.json(); routeCache[cs] = j; return j; }
+    if(r.ok){
+      const j = await r.json();
+      // Server-Form: { route: { orig:{iata,icao,city}, dest:{iata,icao,city} } } | { route:null }
+      const route = j && j.route ? j.route : null;
+      routeCache[cs] = route; return route;
+    }
   }catch(e){}
   routeCache[cs] = null; return null;
 }
@@ -465,18 +482,27 @@ function pickNearest(list){
 function renderHero(a){
   $("callsign").textContent = a.callsign || a.reg || "UNKNOWN";
 
-  // type strip
+  // type strip: TYPE + REG badges
   const ts = $("typestrip");
   ts.innerHTML = "";
   if(a.type){ const b=document.createElement("span"); b.className="badge"; b.textContent="TYPE "+a.type; ts.appendChild(b); }
   if(a.reg){ const b=document.createElement("span"); b.className="badge"; b.textContent="REG "+a.reg; ts.appendChild(b); }
-  if(a.desc){ const s=document.createElement("span"); s.textContent=a.desc; ts.appendChild(s); }
 
-  // acmeta (track)
+  // descriptive line: "2016 Boeing 787-9 Dreamliner" + operator
+  const dl = $("descline");
+  const descParts = [];
+  if(a.year) descParts.push(a.year);
+  if(a.desc) descParts.push(a.desc);
+  dl.querySelector(".big").textContent = descParts.length ? descParts.join(" ") : (a.type || "—");
+  dl.querySelector(".op").textContent = a.ownOp ? a.ownOp.toUpperCase() : "";
+
+  // acmeta: track, squawk, category
   const am = $("acmeta"); am.innerHTML="";
-  const trk = document.createElement("div"); trk.className="pair";
-  trk.innerHTML = `<span class="k">TRACK</span><span class="v"><b>${a.track===null?"—":Math.round(a.track)+"°"}</b></span>`;
-  am.appendChild(trk);
+  const cell = (k,v)=>`<div class="pair"><span class="k">${k}</span><span class="v"><b>${v}</b></span></div>`;
+  let html = cell("TRACK", a.track===null?"—":Math.round(a.track)+"°");
+  if(a.squawk) html += cell("SQUAWK", a.squawk);
+  if(a.cat)    html += cell("CAT", a.cat);
+  am.innerHTML = html;
 }
 
 function renderTelemetry(a){
@@ -498,27 +524,29 @@ function renderTelemetry(a){
 }
 
 async function renderEnrichment(a){
-  // airline + route
-  const route = $("route");
-  let airlineName = airlineFromCallsign(a.callsign);
-  const rt = await getRoute(a.callsign);
-  const fromIata = rt?.origin?.iata || rt?.from?.iata || rt?.dep || "";
-  const fromName = rt?.origin?.name || rt?.from?.name || "";
-  const toIata = rt?.destination?.iata || rt?.to?.iata || rt?.arr || "";
-  const toName = rt?.destination?.name || rt?.to?.name || "";
-  if(rt?.airline?.name) airlineName = rt.airline.name;
+  // Airline aus Callsign-Praefix (mit Digit-Guard, wie im Projekt)
+  const airlineName = airlineFromCallsign(a.callsign);
 
-  if(fromName || toName){
+  // Route: { orig:{iata,icao,city}, dest:{iata,icao,city} }
+  const route = $("route");
+  const rt = await getRoute(a.callsign);
+
+  if(rt && rt.orig && rt.dest){
+    const fromName = rt.orig.city || rt.orig.icao || "—";
+    const toName   = rt.dest.city || rt.dest.icao || "—";
     route.innerHTML =
-      `<div class="leg">${fromName||"—"} <span class="iata">${fromIata}</span></div>
+      `<div class="leg">${fromName} <span class="iata">${rt.orig.iata||""}</span></div>
        <div class="arrow">↓</div>
-       <div class="leg">${toName||"—"} <span class="iata">${toIata}</span></div>
+       <div class="leg">${toName} <span class="iata">${rt.dest.iata||""}</span></div>
        ${airlineName?`<div class="airline">${airlineName}</div>`:""}`;
   } else {
-    route.innerHTML = `<div class="leg ghost">${airlineName||"Keine Routendaten"}</div>`;
+    route.innerHTML = airlineName
+      ? `<div class="leg"><span style="color:var(--txt-dim)">${airlineName}</span></div>
+         <div class="airline ghost">Keine Routendaten verfügbar</div>`
+      : `<div class="leg ghost">Keine Routendaten verfügbar</div>`;
   }
 
-  // photo
+  // Foto
   const photo = $("photo");
   const p = await getPhoto(a.reg);
   if(p){

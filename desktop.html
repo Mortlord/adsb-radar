@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADSB Display · Live Airspace</title>
+<style>
+  /* ---- Design tokens -------------------------------------------------- */
+  :root{
+    --bg:#03070d;            /* deep cockpit black, slightly blue */
+    --bg-panel:#070d16;
+    --bg-elev:#0b1422;
+    --line:#13243a;
+    --line-soft:#0e1b2c;
+    --cyan:#34c3ff;          /* primary accent — radar / live */
+    --cyan-dim:#1a6c93;
+    --amber:#ffb020;         /* alerts / climb */
+    --red:#ff4d4d;           /* descent / offline */
+    --txt:#eaf4ff;
+    --txt-dim:#8aa3c0;
+    --txt-mut:#5f7693;
+    --txt-faint:#33485f;
+    --grid:rgba(52,195,255,.05);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 78% -8%, rgba(52,195,255,.06), transparent 60%),
+      radial-gradient(900px 600px at 5% 110%, rgba(52,195,255,.04), transparent 55%),
+      var(--bg);
+    color:var(--txt);
+    font-family:"Inter","Segoe UI",system-ui,sans-serif;
+    overflow:hidden;
+    height:100vh;
+  }
+  .mono{font-family:"JetBrains Mono","SF Mono","Consolas",ui-monospace,monospace}
+
+  /* faint grid overlay for the cockpit feel */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:46px 46px;
+    mask-image:radial-gradient(120% 120% at 50% 30%,#000 40%,transparent 100%);
+  }
+
+  /* ---- Layout --------------------------------------------------------- */
+  .app{
+    position:relative;z-index:1;height:100vh;
+    display:grid;
+    grid-template-rows:auto 1fr auto;
+    grid-template-columns:1fr;
+    padding:22px 30px;
+    gap:18px;
+  }
+
+  /* Header */
+  header{display:flex;align-items:center;justify-content:space-between}
+  .brand{display:flex;align-items:center;gap:14px}
+  .brand .glyph{
+    width:42px;height:42px;border-radius:50%;
+    border:1.5px solid var(--cyan-dim);
+    display:grid;place-items:center;color:var(--cyan);
+    box-shadow:0 0 24px rgba(52,195,255,.18) inset;
+  }
+  .brand .glyph svg{width:20px;height:20px}
+  .brand .eyebrow{font-size:11px;letter-spacing:.32em;color:var(--cyan);font-weight:600}
+  .brand h1{font-size:21px;letter-spacing:.16em;font-weight:700;margin-top:1px}
+
+  .status{display:flex;align-items:center;gap:26px}
+  .clock{font-size:15px;letter-spacing:.08em;color:var(--txt-dim)}
+  .feed{display:flex;align-items:center;gap:9px;font-size:12px;letter-spacing:.22em;font-weight:600;color:var(--txt-dim)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 0 0 rgba(255,77,77,.6)}
+  .feed.online .dot{background:#22d37a;animation:pulse 2s infinite}
+  .feed.online{color:#7fe6b3}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(34,211,122,.45)}
+    70%{box-shadow:0 0 0 9px rgba(34,211,122,0)}
+    100%{box-shadow:0 0 0 0 rgba(34,211,122,0)}
+  }
+
+  /* Main: hero (left) + radar (right) */
+  .main{
+    display:grid;
+    grid-template-columns:1.32fr 1fr;
+    gap:26px;min-height:0;
+  }
+
+  /* Hero panel */
+  .hero{
+    position:relative;min-width:0;
+    display:flex;flex-direction:column;
+    border:1px solid var(--line);
+    border-radius:18px;
+    background:linear-gradient(180deg,var(--bg-panel),rgba(7,13,22,.4));
+    padding:30px 34px;
+    overflow:hidden;
+  }
+  .hero .corner{position:absolute;width:18px;height:18px;border:1.5px solid var(--cyan-dim);opacity:.5}
+  .hero .corner.tl{top:14px;left:14px;border-right:0;border-bottom:0}
+  .hero .corner.tr{top:14px;right:14px;border-left:0;border-bottom:0}
+  .hero .corner.bl{bottom:14px;left:14px;border-right:0;border-top:0}
+  .hero .corner.br{bottom:14px;right:14px;border-left:0;border-top:0}
+
+  .label{font-size:11px;letter-spacing:.3em;color:var(--cyan);font-weight:600;margin-bottom:6px}
+  .callsign{
+    font-weight:800;line-height:.92;letter-spacing:-.01em;
+    font-size:clamp(54px,7vw,108px);
+    background:linear-gradient(180deg,#fff,#bcd9f2);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    word-break:break-all;
+  }
+  .route{
+    margin-top:20px;padding-top:18px;border-top:1px solid var(--line-soft);
+    max-width:560px;
+  }
+  .route .leg{display:flex;align-items:baseline;gap:10px;font-size:18px;font-weight:600;color:var(--txt)}
+  .route .leg .iata{font-size:13px;color:var(--cyan);letter-spacing:.06em;font-weight:700}
+  .route .arrow{color:var(--txt-faint);margin:2px 0 2px 2px;font-size:15px}
+  .route .airline{margin-top:9px;font-size:13px;letter-spacing:.04em;color:var(--txt-mut)}
+
+  .acmeta{margin-top:22px;display:flex;gap:30px;align-items:baseline;flex-wrap:wrap}
+  .acmeta .pair{display:flex;flex-direction:column;gap:3px}
+  .acmeta .k{font-size:10px;letter-spacing:.24em;color:var(--txt-faint)}
+  .acmeta .v{font-size:20px;font-weight:600;letter-spacing:.04em;color:var(--txt-dim)}
+  .acmeta .v b{color:var(--txt);font-weight:700}
+
+  .typestrip{
+    margin-top:auto;padding-top:22px;
+    display:flex;align-items:center;gap:14px;
+    font-size:13px;color:var(--txt-mut);letter-spacing:.04em;
+  }
+  .typestrip .badge{
+    font-size:11px;letter-spacing:.18em;color:var(--cyan);
+    border:1px solid var(--cyan-dim);border-radius:6px;padding:3px 8px;font-weight:600;
+  }
+
+  /* Photo */
+  .photo{
+    position:absolute;right:0;bottom:0;width:46%;max-width:430px;
+    border-top-left-radius:16px;overflow:hidden;
+    opacity:0;transition:opacity .6s ease;
+    mask-image:linear-gradient(255deg,#000 60%,transparent);
+  }
+  .photo.show{opacity:.92}
+  .photo img{width:100%;display:block}
+  .photo .credit{
+    position:absolute;bottom:6px;right:8px;font-size:9px;color:#cfe;opacity:.7;
+    background:rgba(0,0,0,.45);padding:1px 5px;border-radius:3px;letter-spacing:.03em;
+  }
+
+  /* Radar panel */
+  .radarwrap{
+    position:relative;border:1px solid var(--line);border-radius:18px;
+    background:radial-gradient(circle at 50% 46%,var(--bg-elev),var(--bg-panel) 70%);
+    display:flex;flex-direction:column;min-width:0;
+  }
+  .radarwrap .rhead{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:16px 20px 0;font-size:11px;letter-spacing:.24em;color:var(--txt-mut);font-weight:600;
+  }
+  .radarwrap .rhead .count{color:var(--cyan)}
+  .radarbox{flex:1;display:grid;place-items:center;padding:14px;min-height:0}
+  canvas#radar{width:100%;height:100%;max-width:100%}
+  .rfoot{
+    display:flex;justify-content:space-between;padding:0 20px 14px;
+    font-size:10px;letter-spacing:.16em;color:var(--txt-faint)
+  }
+
+  /* Bottom telemetry bar */
+  .telemetry{
+    display:grid;grid-template-columns:repeat(6,1fr);
+    border:1px solid var(--line);border-radius:16px;overflow:hidden;
+    background:linear-gradient(180deg,rgba(11,20,34,.7),rgba(7,13,22,.5));
+  }
+  .cell{padding:16px 22px;border-right:1px solid var(--line-soft);position:relative}
+  .cell:last-child{border-right:0}
+  .cell .k{font-size:10px;letter-spacing:.24em;color:var(--txt-faint);margin-bottom:7px}
+  .cell .v{font-size:34px;font-weight:700;letter-spacing:.01em;line-height:1}
+  .cell .u{font-size:11px;color:var(--txt-mut);margin-top:6px;letter-spacing:.1em}
+  .cell .sub{font-size:11px;color:var(--txt-faint);margin-top:2px}
+  .cell .v.accent{color:var(--cyan)}
+  .cell .v.amber{color:var(--amber)}
+  .cell .v.red{color:var(--red)}
+
+  .trend{font-size:13px;margin-left:8px;vertical-align:middle}
+
+  /* Empty / error states */
+  .ghost{color:var(--txt-faint)}
+  .banner{
+    position:fixed;left:50%;top:18px;transform:translateX(-50%);
+    background:var(--bg-elev);border:1px solid var(--line);
+    color:var(--txt-dim);font-size:12px;letter-spacing:.08em;
+    padding:9px 16px;border-radius:8px;z-index:20;display:none;
+  }
+  .banner.show{display:block}
+
+  /* Settings (gear) */
+  .gear{cursor:pointer;color:var(--txt-faint);transition:color .2s}
+  .gear:hover{color:var(--cyan)}
+  .settings{
+    position:fixed;top:0;right:0;height:100%;width:340px;z-index:30;
+    background:var(--bg-panel);border-left:1px solid var(--line);
+    padding:28px 26px;transform:translateX(100%);transition:transform .3s ease;
+    display:flex;flex-direction:column;gap:18px;
+  }
+  .settings.open{transform:none}
+  .settings h2{font-size:13px;letter-spacing:.2em;color:var(--cyan);font-weight:600}
+  .settings label{font-size:11px;letter-spacing:.1em;color:var(--txt-mut);display:block;margin-bottom:6px}
+  .settings input{
+    width:100%;background:var(--bg-elev);border:1px solid var(--line);
+    color:var(--txt);padding:10px 12px;border-radius:8px;font-size:14px;font-family:inherit;
+  }
+  .settings .row{display:flex;gap:10px}
+  .settings .row>div{flex:1}
+  .settings button{
+    margin-top:6px;background:var(--cyan);color:#022;border:0;font-weight:700;
+    padding:11px;border-radius:8px;cursor:pointer;letter-spacing:.06em;font-size:13px;
+  }
+  .settings .close{position:absolute;top:18px;right:20px;cursor:pointer;color:var(--txt-faint);font-size:20px}
+  .settings .hint{font-size:11px;color:var(--txt-faint);line-height:1.5}
+
+  @media(max-width:1180px){
+    .main{grid-template-columns:1fr;grid-template-rows:1fr auto}
+    .photo{display:none}
+    .telemetry{grid-template-columns:repeat(3,1fr)}
+    .cell:nth-child(3){border-right:0}
+    .cell:nth-child(n+4){border-top:1px solid var(--line-soft)}
+  }
+</style>
+</head>
+<body>
+<div class="banner" id="banner"></div>
+
+<div class="app">
+  <!-- HEADER -->
+  <header>
+    <div class="brand">
+      <div class="glyph">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>
+      </div>
+      <div>
+        <div class="eyebrow">LIVE AIRSPACE</div>
+        <h1>ADSB DISPLAY</h1>
+      </div>
+    </div>
+    <div class="status">
+      <div class="clock mono" id="clock">--:--:--</div>
+      <div class="feed" id="feed"><span class="dot"></span><span id="feedtxt">CONNECTING</span></div>
+      <div class="gear" id="gear" title="Einstellungen">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- Hero -->
+    <section class="hero">
+      <span class="corner tl"></span><span class="corner tr"></span>
+      <span class="corner bl"></span><span class="corner br"></span>
+
+      <div class="label">NÄCHSTER VERKEHR</div>
+      <div class="callsign mono" id="callsign">———</div>
+
+      <div class="route" id="route">
+        <div class="leg ghost" id="legFrom">Warte auf Daten…</div>
+      </div>
+
+      <div class="acmeta" id="acmeta"></div>
+
+      <div class="typestrip" id="typestrip"></div>
+
+      <div class="photo" id="photo">
+        <img id="photoImg" alt="">
+        <span class="credit" id="photoCredit"></span>
+      </div>
+    </section>
+
+    <!-- Radar -->
+    <section class="radarwrap">
+      <div class="rhead">
+        <span>BEARING RADAR</span>
+        <span class="count"><span id="acCount">0</span> AIRCRAFT</span>
+      </div>
+      <div class="radarbox"><canvas id="radar"></canvas></div>
+      <div class="rfoot">
+        <span class="mono" id="centerLbl">CENTER 47.999, 7.842</span>
+        <span id="radiusLbl">RANGE 60 NM</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- TELEMETRY -->
+  <div class="telemetry" id="telemetry">
+    <div class="cell"><div class="k">ALTITUDE</div><div class="v mono" id="t_alt">—</div><div class="u">FT</div></div>
+    <div class="cell"><div class="k">GROUND SPEED</div><div class="v mono" id="t_gs">—</div><div class="u">KT</div><div class="sub" id="t_mph"></div></div>
+    <div class="cell"><div class="k">DISTANCE</div><div class="v mono accent" id="t_dst">—</div><div class="u">NM</div><div class="sub" id="t_mi"></div></div>
+    <div class="cell"><div class="k">V/SPEED</div><div class="v mono" id="t_vs">—</div><div class="u">FT/MIN</div></div>
+    <div class="cell"><div class="k">SIGNAL</div><div class="v mono" id="t_rssi">—</div><div class="u">DBFS</div></div>
+    <div class="cell"><div class="k">BEARING</div><div class="v mono" id="t_brg">—</div><div class="u">DEG</div></div>
+  </div>
+</div>
+
+<!-- SETTINGS PANEL -->
+<div class="settings" id="settings">
+  <span class="close" id="settingsClose">×</span>
+  <h2>EINSTELLUNGEN</h2>
+  <div>
+    <label>Backend-URL</label>
+    <input id="cfgBase" placeholder="https://…railway.app">
+  </div>
+  <div class="row">
+    <div><label>Latitude</label><input id="cfgLat" class="mono"></div>
+    <div><label>Longitude</label><input id="cfgLon" class="mono"></div>
+  </div>
+  <div class="row">
+    <div><label>Radius (NM)</label><input id="cfgRadius" class="mono"></div>
+    <div><label>Intervall (s)</label><input id="cfgInterval" class="mono"></div>
+  </div>
+  <button id="cfgSave">Speichern & neu laden</button>
+  <p class="hint">Das nächste Flugzeug zum Mittelpunkt wird als Hero angezeigt. Alle Maschinen erscheinen als Punkte im Radar. Einstellungen werden lokal im Browser gespeichert.</p>
+</div>
+
+<script>
+/* ====================================================================== */
+/*  ADSB Desktop Display — Option B (öffentlich/Live via /aircraft)        */
+/* ====================================================================== */
+
+const DEFAULTS = {
+  base: "https://web-production-a6fc8.up.railway.app",
+  lat: 47.9990,
+  lon: 7.8421,
+  radius: 60,
+  interval: 5
+};
+
+function loadCfg(){
+  let c = {};
+  try { c = JSON.parse(localStorage.getItem("adsb_desktop_cfg") || "{}"); } catch(e){}
+  return { ...DEFAULTS, ...c };
+}
+function saveCfg(c){ localStorage.setItem("adsb_desktop_cfg", JSON.stringify(c)); }
+let cfg = loadCfg();
+
+/* ---- helpers --------------------------------------------------------- */
+const $ = id => document.getElementById(id);
+const toRad = d => d*Math.PI/180;
+const toDeg = r => r*180/Math.PI;
+
+function haversineNm(lat1,lon1,lat2,lon2){
+  const R = 3440.065; // nm
+  const dLat = toRad(lat2-lat1), dLon = toRad(lon2-lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+function bearing(lat1,lon1,lat2,lon2){
+  const dLon = toRad(lon2-lon1);
+  const y = Math.sin(dLon)*Math.cos(toRad(lat2));
+  const x = Math.cos(toRad(lat1))*Math.sin(toRad(lat2)) -
+            Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLon);
+  return (toDeg(Math.atan2(y,x))+360)%360;
+}
+const num = v => (v===null||v===undefined||v===""||v==="ground") ? null : (isNaN(+v)?null:+v);
+function fmt(n,d=0){ return n===null?"—":n.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d}); }
+
+/* normalize one aircraft record across possible field names */
+function norm(a, cLat, cLon){
+  const lat = num(a.lat ?? a.latitude);
+  const lon = num(a.lon ?? a.longitude);
+  const r = {
+    callsign: (a.flight ?? a.callsign ?? "").trim(),
+    reg: (a.r ?? a.reg ?? a.registration ?? "").trim(),
+    type: (a.t ?? a.type ?? a.aircraftType ?? "").trim(),
+    desc: (a.desc ?? a.typeDesc ?? "").trim(),
+    alt: num(a.alt_baro ?? a.altitude ?? a.alt),
+    gs: num(a.gs ?? a.speed ?? a.groundspeed),
+    track: num(a.track ?? a.heading ?? a.trak),
+    vs: num(a.baro_rate ?? a.vert_rate ?? a.vs ?? a.geom_rate),
+    rssi: num(a.rssi),
+    lat, lon
+  };
+  if(lat!==null && lon!==null){
+    r.dst = haversineNm(cLat,cLon,lat,lon);
+    r.brg = bearing(cLat,cLon,lat,lon);
+  } else {
+    r.dst = null; r.brg = null;
+  }
+  return r;
+}
+
+/* ---- data fetch ------------------------------------------------------ */
+let lastVS = {}; // track vertical movement per callsign as fallback
+
+async function fetchAircraft(){
+  const url = `${cfg.base}/aircraft?lat=${cfg.lat}&lon=${cfg.lon}&radius=${cfg.radius}`;
+  const res = await fetch(url, { cache:"no-store" });
+  if(!res.ok) throw new Error("HTTP "+res.status);
+  const data = await res.json();
+  // accept ac[] (airplanes.live) or aircraft[]
+  const list = Array.isArray(data.ac) ? data.ac
+             : Array.isArray(data.aircraft) ? data.aircraft
+             : Array.isArray(data) ? data : [];
+  return list.map(a => norm(a, +cfg.lat, +cfg.lon))
+             .filter(a => a.lat!==null && a.lon!==null);
+}
+
+/* ---- enrichment: route + photo -------------------------------------- */
+const routeCache = {}, photoCache = {}, airlineCache = {};
+let airlines = null;
+
+async function loadAirlines(){
+  if(airlines) return airlines;
+  try {
+    const r = await fetch(`${cfg.base}/airlines`,{cache:"force-cache"});
+    if(r.ok) airlines = await r.json();
+  } catch(e){ airlines = {}; }
+  return airlines || {};
+}
+function airlineFromCallsign(cs){
+  if(!cs) return "";
+  const m = cs.match(/^([A-Z]{3})[0-9]/);   // digit guard, like the project does
+  if(!m) return "";
+  const map = airlines || {};
+  return map[m[1]] || "";
+}
+
+async function getRoute(cs){
+  if(!cs) return null;
+  if(cs in routeCache) return routeCache[cs];
+  try{
+    const r = await fetch(`${cfg.base}/route?callsign=${encodeURIComponent(cs)}`,{cache:"no-store"});
+    if(r.ok){ const j = await r.json(); routeCache[cs] = j; return j; }
+  }catch(e){}
+  routeCache[cs] = null; return null;
+}
+async function getPhoto(reg){
+  if(!reg) return null;
+  if(reg in photoCache) return photoCache[reg];
+  // planespotters public API (no key); project uses this source
+  try{
+    const r = await fetch(`https://api.planespotters.net/pub/photos/reg/${encodeURIComponent(reg)}`,{cache:"no-store"});
+    if(r.ok){
+      const j = await r.json();
+      const p = j.photos && j.photos[0];
+      const out = p ? { url:(p.thumbnail_large||p.thumbnail).src, credit:p.photographer } : null;
+      photoCache[reg] = out; return out;
+    }
+  }catch(e){}
+  photoCache[reg] = null; return null;
+}
+
+/* ---- rendering ------------------------------------------------------- */
+let current = null;
+
+function pickNearest(list){
+  let best=null;
+  for(const a of list){ if(a.dst===null) continue; if(!best||a.dst<best.dst) best=a; }
+  return best;
+}
+
+function renderHero(a){
+  $("callsign").textContent = a.callsign || a.reg || "UNKNOWN";
+
+  // type strip
+  const ts = $("typestrip");
+  ts.innerHTML = "";
+  if(a.type){ const b=document.createElement("span"); b.className="badge"; b.textContent="TYPE "+a.type; ts.appendChild(b); }
+  if(a.reg){ const b=document.createElement("span"); b.className="badge"; b.textContent="REG "+a.reg; ts.appendChild(b); }
+  if(a.desc){ const s=document.createElement("span"); s.textContent=a.desc; ts.appendChild(s); }
+
+  // acmeta (track)
+  const am = $("acmeta"); am.innerHTML="";
+  const trk = document.createElement("div"); trk.className="pair";
+  trk.innerHTML = `<span class="k">TRACK</span><span class="v"><b>${a.track===null?"—":Math.round(a.track)+"°"}</b></span>`;
+  am.appendChild(trk);
+}
+
+function renderTelemetry(a){
+  $("t_alt").textContent = fmt(a.alt);
+  $("t_gs").textContent = fmt(a.gs);
+  $("t_mph").textContent = a.gs!==null ? Math.round(a.gs*1.15078)+" MPH" : "";
+  $("t_dst").textContent = a.dst!==null ? a.dst.toFixed(1) : "—";
+  $("t_mi").textContent = a.dst!==null ? (a.dst*1.15078).toFixed(1)+" MI" : "";
+  $("t_brg").textContent = a.brg!==null ? Math.round(a.brg) : "—";
+  $("t_rssi").textContent = a.rssi!==null ? a.rssi.toFixed(1) : "—";
+
+  // V/Speed with trend colour
+  const vsEl = $("t_vs");
+  if(a.vs===null){ vsEl.textContent="—"; vsEl.className="v mono"; }
+  else{
+    vsEl.textContent = (a.vs>0?"+":"")+fmt(a.vs);
+    vsEl.className = "v mono " + (a.vs>100?"amber":a.vs<-100?"red":"");
+  }
+}
+
+async function renderEnrichment(a){
+  // airline + route
+  const route = $("route");
+  let airlineName = airlineFromCallsign(a.callsign);
+  const rt = await getRoute(a.callsign);
+  const fromIata = rt?.origin?.iata || rt?.from?.iata || rt?.dep || "";
+  const fromName = rt?.origin?.name || rt?.from?.name || "";
+  const toIata = rt?.destination?.iata || rt?.to?.iata || rt?.arr || "";
+  const toName = rt?.destination?.name || rt?.to?.name || "";
+  if(rt?.airline?.name) airlineName = rt.airline.name;
+
+  if(fromName || toName){
+    route.innerHTML =
+      `<div class="leg">${fromName||"—"} <span class="iata">${fromIata}</span></div>
+       <div class="arrow">↓</div>
+       <div class="leg">${toName||"—"} <span class="iata">${toIata}</span></div>
+       ${airlineName?`<div class="airline">${airlineName}</div>`:""}`;
+  } else {
+    route.innerHTML = `<div class="leg ghost">${airlineName||"Keine Routendaten"}</div>`;
+  }
+
+  // photo
+  const photo = $("photo");
+  const p = await getPhoto(a.reg);
+  if(p){
+    $("photoImg").src = p.url;
+    $("photoCredit").textContent = "© "+(p.credit||"planespotters");
+    photo.classList.add("show");
+  } else {
+    photo.classList.remove("show");
+  }
+}
+
+/* ---- radar canvas ---------------------------------------------------- */
+const cv = $("radar"), ctx = cv.getContext("2d");
+let sweep = 0;
+
+function sizeCanvas(){
+  const box = cv.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  const s = Math.min(box.clientWidth, box.clientHeight);
+  cv.width = s*dpr; cv.height = s*dpr;
+  cv.style.width = cv.style.height = s+"px";
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  return s;
+}
+let R = sizeCanvas();
+window.addEventListener("resize", ()=>{ R = sizeCanvas(); });
+
+let aircraftList = [];
+
+function drawRadar(){
+  const size = R, c = size/2, rad = size*0.44;
+  ctx.clearRect(0,0,size,size);
+
+  // rings
+  ctx.strokeStyle = "rgba(52,195,255,.16)";
+  ctx.fillStyle = "rgba(52,195,255,.5)";
+  ctx.lineWidth = 1;
+  ctx.font = "10px JetBrains Mono, monospace";
+  for(let i=1;i<=4;i++){
+    const rr = rad*i/4;
+    ctx.beginPath(); ctx.arc(c,c,rr,0,Math.PI*2); ctx.stroke();
+    const lbl = Math.round(cfg.radius*i/4)+"";
+    ctx.fillStyle="rgba(95,118,147,.6)";
+    ctx.fillText(lbl, c+4, c-rr+12);
+  }
+  // crosshair + cardinals
+  ctx.strokeStyle="rgba(52,195,255,.12)";
+  ctx.beginPath(); ctx.moveTo(c-rad,c); ctx.lineTo(c+rad,c);
+  ctx.moveTo(c,c-rad); ctx.lineTo(c,c+rad); ctx.stroke();
+  ctx.fillStyle="rgba(95,118,147,.7)"; ctx.font="11px Inter, sans-serif";
+  ctx.textAlign="center";
+  ctx.fillText("N",c,c-rad-6); ctx.fillText("S",c,c+rad+14);
+  ctx.fillText("E",c+rad+8,c+4); ctx.fillText("W",c-rad-8,c+4);
+  ctx.textAlign="start";
+
+  // sweep
+  const grad = ctx.createConicGradient ? null : null;
+  ctx.save();
+  ctx.translate(c,c); ctx.rotate(sweep);
+  const g = ctx.createLinearGradient(0,0,rad,0);
+  g.addColorStop(0,"rgba(52,195,255,.22)");
+  g.addColorStop(1,"rgba(52,195,255,0)");
+  ctx.beginPath(); ctx.moveTo(0,0);
+  ctx.arc(0,0,rad,-0.36,0); ctx.closePath();
+  ctx.fillStyle=g; ctx.fill();
+  ctx.strokeStyle="rgba(52,195,255,.55)"; ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(rad,0); ctx.stroke();
+  ctx.restore();
+
+  // center
+  ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(c,c,2.4,0,Math.PI*2); ctx.fill();
+
+  // aircraft dots
+  for(const a of aircraftList){
+    if(a.dst===null || a.dst>cfg.radius) continue;
+    const ang = toRad(a.brg) - Math.PI/2; // north up
+    const rr = rad * (a.dst/cfg.radius);
+    const x = c + rr*Math.cos(ang), y = c + rr*Math.sin(ang);
+    const isCur = current && (a.callsign===current.callsign && a.reg===current.reg);
+
+    if(isCur){
+      ctx.fillStyle="#34c3ff";
+      ctx.shadowColor="#34c3ff"; ctx.shadowBlur=10;
+    } else {
+      ctx.fillStyle="rgba(180,210,235,.65)";
+      ctx.shadowBlur=0;
+    }
+    // little aircraft triangle pointing along track
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(toRad((a.track??a.brg??0)));
+    ctx.beginPath();
+    ctx.moveTo(0,-5); ctx.lineTo(3.2,4); ctx.lineTo(0,2); ctx.lineTo(-3.2,4); ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    ctx.shadowBlur=0;
+
+    if(isCur){
+      ctx.strokeStyle="rgba(52,195,255,.5)"; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(x,y,9,0,Math.PI*2); ctx.stroke();
+      ctx.fillStyle="#9fd6f5"; ctx.font="9px JetBrains Mono, monospace";
+      ctx.fillText(a.callsign||a.reg||"", x+11, y+3);
+    }
+  }
+}
+function animate(){
+  sweep += 0.018;
+  if(sweep>Math.PI*2) sweep-=Math.PI*2;
+  drawRadar();
+  requestAnimationFrame(animate);
+}
+animate();
+
+/* ---- feed status + clock -------------------------------------------- */
+function setFeed(online){
+  const f = $("feed");
+  f.classList.toggle("online", online);
+  $("feedtxt").textContent = online ? "FEED ONLINE" : "FEED OFFLINE";
+}
+function tickClock(){
+  const d = new Date();
+  $("clock").textContent = d.toLocaleTimeString("de-DE",{hour12:false}) + " · " +
+    d.toLocaleDateString("de-DE",{day:"2-digit",month:"short"});
+}
+setInterval(tickClock,1000); tickClock();
+
+function banner(msg){
+  const b=$("banner");
+  if(!msg){ b.classList.remove("show"); return; }
+  b.textContent=msg; b.classList.add("show");
+}
+
+/* ---- main loop ------------------------------------------------------- */
+let timer=null;
+async function loop(){
+  try{
+    const list = await fetchAircraft();
+    aircraftList = list;
+    $("acCount").textContent = list.length;
+    setFeed(true); banner(null);
+
+    const nearest = pickNearest(list);
+    if(nearest){
+      const changed = !current || current.callsign!==nearest.callsign || current.reg!==nearest.reg;
+      current = nearest;
+      renderHero(nearest);
+      renderTelemetry(nearest);
+      if(changed){ renderEnrichment(nearest); }
+      else {
+        // refresh fast-changing fields only
+      }
+    } else {
+      $("callsign").textContent="KEIN VERKEHR";
+      $("route").innerHTML=`<div class="leg ghost">Kein Flugzeug im Radius ${cfg.radius} NM</div>`;
+    }
+  }catch(e){
+    setFeed(false);
+    banner("Backend nicht erreichbar — "+e.message+"  (Einstellungen ⚙ prüfen)");
+  }
+}
+
+function start(){
+  $("radiusLbl") && ($("radiusLbl").textContent = "RANGE "+cfg.radius+" NM");
+  if(timer) clearInterval(timer);
+  loadAirlines().then(loop);
+  timer = setInterval(loop, Math.max(2, +cfg.interval)*1000);
+}
+
+/* ---- settings UI ----------------------------------------------------- */
+function openSettings(){
+  $("cfgBase").value = cfg.base;
+  $("cfgLat").value = cfg.lat;
+  $("cfgLon").value = cfg.lon;
+  $("cfgRadius").value = cfg.radius;
+  $("cfgInterval").value = cfg.interval;
+  $("settings").classList.add("open");
+}
+$("gear").onclick = openSettings;
+$("settingsClose").onclick = ()=>$("settings").classList.remove("open");
+$("cfgSave").onclick = ()=>{
+  cfg = {
+    base: $("cfgBase").value.trim().replace(/\/$/,""),
+    lat: parseFloat($("cfgLat").value) || DEFAULTS.lat,
+    lon: parseFloat($("cfgLon").value) || DEFAULTS.lon,
+    radius: parseInt($("cfgRadius").value) || DEFAULTS.radius,
+    interval: parseInt($("cfgInterval").value) || DEFAULTS.interval
+  };
+  saveCfg(cfg);
+  airlines=null;
+  $("settings").classList.remove("open");
+  start();
+};
+
+start();
+</script>
+</body>
+</html>

@@ -299,6 +299,9 @@
         <span class="mono" id="centerLbl">CENTER 47.999, 7.842</span>
         <span id="radiusLbl">RANGE 60 NM</span>
       </div>
+      <div class="rfoot" id="addrRow" style="display:none">
+        <span class="mono" id="addrLbl" style="color:var(--txt-dim);font-size:11px;letter-spacing:.04em">—</span>
+      </div>
     </section>
   </div>
 
@@ -325,6 +328,13 @@
     <div><label>Latitude</label><input id="cfgLat" class="mono"></div>
     <div><label>Longitude</label><input id="cfgLon" class="mono"></div>
   </div>
+  <div style="margin:6px 0 2px">
+    <label style="display:flex;align-items:center;gap:9px;cursor:pointer">
+      <input type="checkbox" id="cfgGps" style="width:auto;margin:0">
+      <span>📍 Standort automatisch (GPS)</span>
+    </label>
+    <p class="hint" id="gpsHint" style="margin:4px 0 0">Aus: feste Koordinaten oben. An: Position kommt live vom Browser, Felder werden gesperrt.</p>
+  </div>
   <div class="row">
     <div><label>Radius (NM)</label><input id="cfgRadius" class="mono"></div>
     <div><label>Intervall (s)</label><input id="cfgInterval" class="mono"></div>
@@ -343,7 +353,8 @@ const DEFAULTS = {
   lat: 47.9990,
   lon: 7.8421,
   radius: 60,
-  interval: 5
+  interval: 5,
+  gps: false
 };
 
 function loadCfg(){
@@ -366,6 +377,84 @@ let cfg = loadCfg();
 const $ = id => document.getElementById(id);
 const toRad = d => d*Math.PI/180;
 const toDeg = r => r*180/Math.PI;
+
+/* ---- GPS / Reverse-Geocoding ----------------------------------------- */
+let gpsWatchId = null;
+let lastGeo = { lat:null, lon:null };   // letzte für Geocoding abgefragte Position
+
+function updateCenterLabel(){
+  const c = $("centerLbl");
+  if(c) c.textContent = `CENTER ${(+cfg.lat).toFixed(3)}, ${(+cfg.lon).toFixed(3)}`
+                      + (cfg.gps ? "  📍" : "");
+}
+
+// Meter-Distanz (für Geocoding-Drosselung)
+function metersBetween(lat1,lon1,lat2,lon2){
+  if(lat2===null) return Infinity;
+  const R=6371000;
+  const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+async function reverseGeocode(lat,lon){
+  try{
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2`
+              + `&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
+    const res = await fetch(url, { headers:{ 'Accept-Language':'de' } });
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const d = await res.json();
+    const a = d.address || {};
+    const parts = [
+      [a.road, a.house_number].filter(Boolean).join(' '),
+      [a.postcode, a.city||a.town||a.village||a.municipality].filter(Boolean).join(' ')
+    ].filter(Boolean);
+    const txt = parts.join(', ') || d.display_name || '—';
+    $("addrLbl").textContent = txt;
+    $("addrRow").style.display = "flex";
+  }catch(e){
+    $("addrLbl").textContent = "Adresse nicht verfügbar";
+    $("addrRow").style.display = "flex";
+  }
+}
+
+function startGps(){
+  if(!navigator.geolocation){
+    banner("GPS nicht verfügbar in diesem Browser.");
+    setTimeout(()=>banner(null),5000);
+    cfg.gps=false; saveCfg(cfg); return;
+  }
+  stopGps();
+  gpsWatchId = navigator.geolocation.watchPosition(
+    pos=>{
+      cfg.lat = pos.coords.latitude;
+      cfg.lon = pos.coords.longitude;
+      updateCenterLabel();
+      // Adresse nur bei Bewegung >100 m neu auflösen (Nominatim-Limit schonen)
+      if(metersBetween(cfg.lat,cfg.lon,lastGeo.lat,lastGeo.lon) > 100){
+        lastGeo = { lat:cfg.lat, lon:cfg.lon };
+        reverseGeocode(cfg.lat,cfg.lon);
+      }
+    },
+    err=>{
+      banner("GPS-Fehler: "+err.message+" — falle auf feste Koordinaten zurück.");
+      setTimeout(()=>banner(null),6000);
+      cfg.gps=false; saveCfg(cfg); stopGps(); updateCenterLabel();
+    },
+    { enableHighAccuracy:true, maximumAge:30000, timeout:27000 }
+  );
+}
+
+function stopGps(){
+  if(gpsWatchId!==null){ navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId=null; }
+  lastGeo = { lat:null, lon:null };
+  $("addrRow").style.display = "none";
+}
+
+function applyGpsMode(){
+  if(cfg.gps) startGps(); else stopGps();
+  updateCenterLabel();
+}
 
 function haversineNm(lat1,lon1,lat2,lon2){
   const R = 3440.065; // nm
@@ -718,6 +807,8 @@ async function loop(){
 
 function start(){
   $("radiusLbl") && ($("radiusLbl").textContent = "RANGE "+cfg.radius+" NM");
+  updateCenterLabel();
+  applyGpsMode();
   if(timer) clearInterval(timer);
   loadAirlines().then(loop);
   timer = setInterval(loop, Math.max(2, +cfg.interval)*1000);
@@ -730,8 +821,17 @@ function openSettings(){
   $("cfgLon").value = cfg.lon;
   $("cfgRadius").value = cfg.radius;
   $("cfgInterval").value = cfg.interval;
+  $("cfgGps").checked = !!cfg.gps;
+  lockCoordFields(!!cfg.gps);
   $("settings").classList.add("open");
 }
+function lockCoordFields(locked){
+  $("cfgLat").disabled = locked;
+  $("cfgLon").disabled = locked;
+  $("cfgLat").style.opacity = locked ? .45 : 1;
+  $("cfgLon").style.opacity = locked ? .45 : 1;
+}
+$("cfgGps").onchange = e => lockCoordFields(e.target.checked);
 $("gear").onclick = openSettings;
 $("settingsClose").onclick = ()=>$("settings").classList.remove("open");
 $("cfgSave").onclick = ()=>{
@@ -747,12 +847,14 @@ $("cfgSave").onclick = ()=>{
     lat: numOr("cfgLat", cfg.lat, parseFloat),
     lon: numOr("cfgLon", cfg.lon, parseFloat),
     radius: Math.max(1, numOr("cfgRadius", cfg.radius, v=>parseInt(v,10))),
-    interval: Math.max(2, numOr("cfgInterval", cfg.interval, v=>parseInt(v,10)))
+    interval: Math.max(2, numOr("cfgInterval", cfg.interval, v=>parseInt(v,10))),
+    gps: $("cfgGps").checked
   };
   cfg = next;
   const ok = saveCfg(cfg);
   airlines=null;
   $("settings").classList.remove("open");
+  applyGpsMode();
   if(!ok){
     banner("Hinweis: Einstellungen konnten nicht dauerhaft gespeichert werden (localStorage blockiert) — sie gelten nur für diese Sitzung.");
     setTimeout(()=>banner(null), 6000);

@@ -1171,8 +1171,10 @@ function drawRadar() {
     ctx.setLineDash([3,5]); ctx.stroke(); ctx.setLineDash([]);
   }
 
-  // aircraft
+  // aircraft — Durchgang 1: Blips zeichnen (in rotierter Szene),
+  // Labels erst sammeln und nach der Szene mit Kollisionsauflösung zeichnen.
   radarHits = [];
+  const labelJobs = [];
   Object.values(aircraft).forEach(ac => {
     if (ac.lat==null||myLat==null) return;
     const cLat = centerLat();
@@ -1187,7 +1189,7 @@ function drawRadar() {
     const rad = (brg-90)*Math.PI/180;
     const x = cx+R*frac*Math.cos(rad), y = cy+R*frac*Math.sin(rad);
     // Bildschirmposition unter Beruecksichtigung der Szenen-Rotation (-hdgRad)
-    // um den Mittelpunkt cx,cy. Wird fuer Tap/Klick-Treffer gebraucht.
+    // um den Mittelpunkt cx,cy. Wird fuer Tap/Klick-Treffer UND Label-Layout gebraucht.
     const ca = Math.cos(-hdgRad), sa = Math.sin(-hdgRad);
     const sx = cx + (x-cx)*ca - (y-cy)*sa;
     const sy = cy + (x-cx)*sa + (y-cy)*ca;
@@ -1207,20 +1209,12 @@ function drawRadar() {
     ctx.restore();
 
     const label = (ac.flight||ac.hex||'').trim();
-    // Label gegenrotieren, damit es waagerecht lesbar bleibt
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(hdgRad);
-    ctx.globalAlpha=isSel?1:.7;
-    ctx.fillStyle=isSel?'#e6ecf2':color;
-    ctx.font=isSel?'600 11px "IBM Plex Mono", monospace':'10px "IBM Plex Mono", monospace';
-    ctx.textAlign='left';
-    ctx.fillText(label, sz+2, 4);
-    ctx.globalAlpha=1;
-    ctx.restore();
+    if (label) labelJobs.push({ label, sx, sy, sz, isSel, color, dst });
   });
 
-  ctx.restore(); // Ende Szenen-Rotation
+  ctx.restore(); // Ende Szenen-Rotation — Labels folgen im Bildschirmraum
+
+  drawRadarLabels(labelJobs, R, cx, cy);
 
   // me — Mittelpunkt, dreht sich nicht
   ctx.beginPath(); ctx.arc(cx,cy,5,0,Math.PI*2);
@@ -1231,7 +1225,68 @@ function drawRadar() {
   updateMapView();
 }
 
-// ── KARTEN-HINTERGRUND (fix, nicht verschiebbar, nur Sichtweise) ──
+// ── Label-Layout mit Kollisionsauflösung ──────────────────────────────
+// Callsign-Labels werden nach Priorität platziert (selektiert > näher).
+// Für jedes Label werden mehrere Ankerpositionen um den Blip probiert;
+// überlappt es alle bereits gesetzten, wird es bei Gedränge ausgelassen.
+// So verschwindet das "Labels liegen übereinander"-Problem.
+function drawRadarLabels(jobs, R, cx, cy) {
+  if (!jobs.length) return;
+  // Priorität: selektiertes zuerst, dann kleinste Distanz (näher = wichtiger)
+  jobs.sort((a,b) => (b.isSel-a.isSel) || (a.dst-b.dst));
+
+  const placed = [];               // belegte Rechtecke {x,y,w,h}
+  const pad = 2;                   // Kollisions-Toleranz
+  const lineH = 12;
+
+  const overlaps = (r) => placed.some(p =>
+    r.x < p.x+p.w+pad && r.x+r.w+pad > p.x &&
+    r.y < p.y+p.h+pad && r.y+r.h+pad > p.y);
+
+  ctx.textBaseline = 'middle';
+  for (const j of jobs) {
+    ctx.font = j.isSel ? '600 11px "IBM Plex Mono", monospace'
+                       : '10px "IBM Plex Mono", monospace';
+    const w = ctx.measureText(j.label).width;
+    const off = j.sz + 3;
+    // Kandidatenanker relativ zum Blip: rechts, links, oben, unten
+    const cands = [
+      { x: j.sx+off,        y: j.sy,        align:'left'  },
+      { x: j.sx-off-w,      y: j.sy,        align:'left'  },
+      { x: j.sx-w/2,        y: j.sy-off-8,  align:'left'  },
+      { x: j.sx-w/2,        y: j.sy+off+8,  align:'left'  },
+      { x: j.sx+off,        y: j.sy-off-4,  align:'left'  },
+      { x: j.sx-off-w,      y: j.sy+off+4,  align:'left'  },
+      { x: j.sx+off,        y: j.sy+off+4,  align:'left'  },
+      { x: j.sx-off-w,      y: j.sy-off-4,  align:'left'  },
+    ];
+    let chosen = null;
+    for (const c of cands) {
+      const rect = { x:c.x, y:c.y-lineH/2, w, h:lineH };
+      // innerhalb des Radarkreises halten (grob)
+      const dxc = (c.x+w/2)-cx, dyc = c.y-cy;
+      if (Math.hypot(dxc,dyc) > R+14) continue;
+      if (!overlaps(rect)) { chosen = { c, rect }; break; }
+    }
+    // Selektiertes Label wird immer gezeigt (notfalls am 1. Anker, überlappend)
+    if (!chosen) {
+      if (j.isSel) {
+        const c = cands[0];
+        chosen = { c, rect:{ x:c.x, y:c.y-lineH/2, w, h:lineH } };
+      } else {
+        continue; // bei Gedränge auslassen statt überlappen
+      }
+    }
+    placed.push(chosen.rect);
+    ctx.globalAlpha = j.isSel ? 1 : .82;
+    ctx.fillStyle   = j.isSel ? '#e6ecf2' : j.color;
+    ctx.textAlign   = 'left';
+    ctx.fillText(j.label, chosen.c.x, chosen.c.y);
+    ctx.globalAlpha = 1;
+  }
+  ctx.textBaseline = 'alphabetic';
+}
+
 function initRadarMap() {
   if (radarMap) return;
   radarMap = L.map('radar-map', {
@@ -1801,6 +1856,12 @@ function setApiStatus(color, text) {
   txt.textContent = 'API: ' + text;
 }
 
+// Einheitliche Koordinaten-Formatierung – überall dieselbe Präzision,
+// damit GPS-Statusleiste und Footer nicht unterschiedlich runden.
+function fmtCoord(lat, lon) {
+  return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+}
+
 function setGpsStatus(color, text) {
   const dot = document.getElementById('gps-dot');
   const txt = document.getElementById('gps-txt');
@@ -1831,9 +1892,8 @@ async function getLocation() {
       pos => {
         myLat = pos.coords.latitude;
         myLon = pos.coords.longitude;
-        document.getElementById('footer-pos').textContent =
-          `Pos: ${myLat.toFixed(4)}, ${myLon.toFixed(4)}`;
-        setGpsStatus('green', `${myLat.toFixed(2)}, ${myLon.toFixed(2)}`);
+        document.getElementById('footer-pos').textContent = 'Pos: ' + fmtCoord(myLat, myLon);
+        setGpsStatus('green', fmtCoord(myLat, myLon));
         document.getElementById('loc-modal').classList.remove('visible');
         fetchTimezone(myLat, myLon);
         mapApplied = null; drawRadar();
@@ -1868,9 +1928,8 @@ async function refreshGpsQuiet() {
     pos => {
       myLat = pos.coords.latitude;
       myLon = pos.coords.longitude;
-      document.getElementById('footer-pos').textContent =
-        `Pos: ${myLat.toFixed(4)}, ${myLon.toFixed(4)}`;
-      setGpsStatus('green', `${myLat.toFixed(2)}, ${myLon.toFixed(2)}`);
+      document.getElementById('footer-pos').textContent = 'Pos: ' + fmtCoord(myLat, myLon);
+      setGpsStatus('green', fmtCoord(myLat, myLon));
     },
     () => {},
     { timeout: 8000, maximumAge: 120000 }

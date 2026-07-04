@@ -12,7 +12,36 @@
    ADSB RADAR · Design "Approach"
    ATC-nüchtern: entsättigt, Bedeutung statt Deko, Barlow + Plex Mono
    ═══════════════════════════════════════════════════════════ */
-@import url('https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+/* ═══════════════════════════════════════════════════════════
+   Selbstgehostete Fonts (kein externer Request an Google).
+   Dateien im Ordner /fonts/ neben dieser HTML-Datei.
+   Lizenz: SIL Open Font License (Selbsthosten erlaubt).
+   ═══════════════════════════════════════════════════════════ */
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('fonts/barlow-semi-condensed-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal; font-weight: 600; font-display: swap;
+  src: url('fonts/barlow-semi-condensed-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  font-style: normal; font-weight: 700; font-display: swap;
+  src: url('fonts/barlow-semi-condensed-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('fonts/ibm-plex-mono-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal; font-weight: 600; font-display: swap;
+  src: url('fonts/ibm-plex-mono-600.woff2') format('woff2');
+}
 
 :root {
   --bg:       #12161c;
@@ -290,7 +319,7 @@ body {
 .dp-badges { display: flex; gap: 6px; margin: 6px 0 2px; flex-wrap: wrap; }
 .badge {
   padding: 2px 8px; border-radius: var(--r); font-size: 0.64rem;
-  font-family: var(--mono); font-weight: 500; letter-spacing: .5px;
+  font-family: var(--mono); font-weight: 600; letter-spacing: .5px;
   border: 1px solid var(--line);
 }
 .badge-icao  { background: var(--panel-2); color: var(--accent); border-color: var(--accent-dim); }

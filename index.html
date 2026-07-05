@@ -3,6 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Content-Security-Policy als zusaetzliche XSS-Verteidigung (Punkt 3).
+     Diese private Seite nutzt Leaflet vom cdnjs-CDN, Kartenkacheln von cartocdn,
+     corsproxy.io als Fallback-Proxy sowie die eigenen API-/Datenquellen.
+     Hinweis: frame-ancestors wirkt nur als HTTP-Header, daher zusaetzlich auf
+     dem Static-Host bzw. via Cloudflare setzen. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://api.airplanes.live https://api.adsbdb.com https://api.planespotters.net https://corsproxy.io https://web-production-a6fc8.up.railway.app; font-src 'self'; object-src 'none'; base-uri 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'">
 <title>ADSB Radar</title>
 <meta name="description" content="Live ADS-B aircraft radar – powered by adsb.lol">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
@@ -781,7 +787,7 @@ function saveFavorites() {
 async function loadFavorites() {
   if (!favToken) return;
   try {
-    const r = await fetch(`${PUSH_SERVER}/favorites?token=${encodeURIComponent(favToken)}`, { signal: AbortSignal.timeout(6000) });
+    const r = await fetch(`${PUSH_SERVER}/favorites`, { headers: { 'X-Auth-Token': favToken }, signal: AbortSignal.timeout(6000) });
     if (!r.ok) return;
     const d = await r.json();
     if (d.ok && Array.isArray(d.favorites)) {
@@ -1497,7 +1503,7 @@ async function checkFeederStatus() {
     if (!favToken) {
       feederOnline = false;
     } else {
-      const r = await fetch(`${PUSH_SERVER}/feeder?check=1&token=${encodeURIComponent(favToken)}`, { signal: AbortSignal.timeout(6000) });
+      const r = await fetch(`${PUSH_SERVER}/feeder?check=1`, { headers: { 'X-Auth-Token': favToken }, signal: AbortSignal.timeout(6000) });
       if (r.ok) {
         const d = await r.json();
         if (typeof d.lat === 'number') FEEDER_LAT = d.lat;
@@ -1515,7 +1521,7 @@ async function checkFeederStatus() {
     if (!favToken) {
       fixpointOnline = false;
     } else {
-      const r = await fetch(`${PUSH_SERVER}/fixpoint?check=1&token=${encodeURIComponent(favToken)}`, { signal: AbortSignal.timeout(6000) });
+      const r = await fetch(`${PUSH_SERVER}/fixpoint?check=1`, { headers: { 'X-Auth-Token': favToken }, signal: AbortSignal.timeout(6000) });
       if (r.ok) {
         const d = await r.json();
         if (d.ok && typeof d.lat === 'number' && typeof d.lon === 'number') {
@@ -1624,11 +1630,11 @@ async function fetchData() {
     let resp;
     if (dataSource === 'feeder') {
       // Feeder-Modus: eigener Pi, fester Standort
-      resp = await fetch(`${PUSH_SERVER}/feeder?token=${encodeURIComponent(favToken)}`, { signal: AbortSignal.timeout(10000) });
+      resp = await fetch(`${PUSH_SERVER}/feeder`, { headers: { 'X-Auth-Token': favToken }, signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error('feeder ' + resp.status);
     } else if (dataSource === 'fixpoint') {
       // Fixpunkt-Modus: Live-Feed über Backend, zentriert auf alte Heimat (Koordinaten im Backend)
-      resp = await fetch(`${PUSH_SERVER}/fixpoint?token=${encodeURIComponent(favToken)}&radius=${radius}`, { signal: AbortSignal.timeout(10000) });
+      resp = await fetch(`${PUSH_SERVER}/fixpoint?radius=${radius}`, { headers: { 'X-Auth-Token': favToken }, signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error('fixpoint ' + resp.status);
     } else {
     // airplanes.live hat native CORS-Unterstützung → kein Proxy nötig, kein Caching-Problem

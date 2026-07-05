@@ -8,7 +8,7 @@
      corsproxy.io als Fallback-Proxy sowie die eigenen API-/Datenquellen.
      Hinweis: frame-ancestors wirkt nur als HTTP-Header, daher zusaetzlich auf
      dem Static-Host bzw. via Cloudflare setzen. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://api.airplanes.live https://api.adsbdb.com https://api.planespotters.net https://corsproxy.io https://web-production-a6fc8.up.railway.app; font-src 'self'; object-src 'none'; base-uri 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://api.airplanes.live https://api.adsbdb.com https://api.planespotters.net https://corsproxy.io https://api.adsb-radar.de; font-src 'self'; object-src 'none'; base-uri 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'">
 <title>ADSB Radar</title>
 <meta name="description" content="Live ADS-B aircraft radar – powered by adsb.lol">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
@@ -855,7 +855,7 @@ async function init() {
 
   // Airlines vom Server laden (single source of truth)
   try {
-    const r = await fetch('https://web-production-a6fc8.up.railway.app/airlines');
+    const r = await fetch('https://api.adsb-radar.de/airlines');
     if (r.ok) AIRLINES = await r.json();
   } catch(e) { console.warn('Airlines konnten nicht geladen werden:', e); }
 
@@ -879,7 +879,7 @@ async function init() {
 // ══════════════════════════════════════════════
 // TELEGRAM NOTIFICATIONS
 // ══════════════════════════════════════════════
-const PUSH_SERVER = 'https://web-production-a6fc8.up.railway.app';
+const PUSH_SERVER = 'https://api.adsb-radar.de';
 // Feeder-Zugriff läuft serverseitig über deinen Token (/feeder). Feed und Koordinaten
 // stehen NICHT mehr im öffentlichen Quelltext, sie werden nur für den Owner geladen.
 let FEEDER_LAT = null;
@@ -1413,7 +1413,7 @@ async function fetchRoute(callsign) {
   if (routeCache[cs] !== undefined) return routeCache[cs];
   routeCache[cs] = null; // Platzhalter gegen Doppel-Anfragen
   try {
-    const r = await fetch(`https://web-production-a6fc8.up.railway.app/route?callsign=${encodeURIComponent(cs)}`,
+    const r = await fetch(`https://api.adsb-radar.de/route?callsign=${encodeURIComponent(cs)}`,
                           {signal: AbortSignal.timeout(8000)});
     if (!r.ok) return null;
     const d = await r.json();

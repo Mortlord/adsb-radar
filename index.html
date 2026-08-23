@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- Content-Security-Policy als zusaetzliche XSS-Verteidigung (Punkt 3).
      Diese private Seite nutzt Leaflet vom cdnjs-CDN, Kartenkacheln von cartocdn,
-     corsproxy.io als Fallback-Proxy sowie die eigenen API-/Datenquellen.
+     die eigenen API-/Datenquellen (Railway-Backend als Standard, airplanes.live als Fallback).
      Hinweis: frame-ancestors wirkt nur als HTTP-Header, daher zusaetzlich auf
      dem Static-Host bzw. via Cloudflare setzen. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://api.airplanes.live https://api.adsbdb.com https://api.planespotters.net https://corsproxy.io https://api.adsb-radar.de; font-src 'self'; object-src 'none'; base-uri 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://api.airplanes.live https://api.adsbdb.com https://api.planespotters.net https://api.adsb-radar.de; font-src 'self'; object-src 'none'; base-uri 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'">
 <title>ADSB Radar</title>
 <meta name="description" content="Live ADS-B aircraft radar – powered by adsb.lol">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
@@ -1637,18 +1637,21 @@ async function fetchData() {
       resp = await fetch(`${PUSH_SERVER}/fixpoint?radius=${radius}`, { headers: { 'X-Auth-Token': favToken }, signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error('fixpoint ' + resp.status);
     } else {
-    // airplanes.live hat native CORS-Unterstützung → kein Proxy nötig, kein Caching-Problem
-    // Fallback auf corsproxy.io falls direkt blockiert
-    const directUrl = `https://api.airplanes.live/v2/point/${myLat.toFixed(4)}/${myLon.toFixed(4)}/${radius}`;
-    const proxyUrl  = `https://corsproxy.io/?${encodeURIComponent(directUrl)}`;
+    // Live-Feed: primaer ueber das eigene Backend (Railway-Proxy). Das ist die in den
+    // Rechtstexten dokumentierte Architektur: keine direkte Browser-Verbindung zu Dritten.
+    // Nur wenn das eigene Backend nicht erreichbar ist, wird airplanes.live direkt
+    // angefragt (native CORS-Unterstuetzung). Kein Fremd-Proxy mehr.
+    const backendUrl = `${PUSH_SERVER}/aircraft?lat=${myLat.toFixed(4)}&lon=${myLon.toFixed(4)}&radius=${radius}`;
+    const directUrl  = `https://api.airplanes.live/v2/point/${myLat.toFixed(4)}/${myLon.toFixed(4)}/${radius}`;
     try {
-      resp = await fetch(directUrl, { signal: AbortSignal.timeout(10000) });
-      if (!resp.ok) throw new Error('direct ' + resp.status);
+      resp = await fetch(backendUrl, { signal: AbortSignal.timeout(10000) });
+      if (!resp.ok) throw new Error('backend ' + resp.status);
     } catch {
-      resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+      resp = await fetch(directUrl, { signal: AbortSignal.timeout(15000) });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} (airplanes.live)`);
     }
     }
-    if (!resp.ok) throw new Error(`HTTP ${resp.status} (proxy)`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     // Feeder liefert data.aircraft[], airplanes.live + Fixpunkt liefern data.ac[]
     const acList = data.ac || data.aircraft || [];

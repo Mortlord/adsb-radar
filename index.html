@@ -169,10 +169,18 @@ body {
 }
 #radar-map.active { display: block; }
 .leaflet-container { background: #0c0f14; }
-/* Esri Dark Gray ist ab Werk zu hell fuer die Approach-Palette:
-   Basiskacheln abdunkeln, Beschriftungen separat dezent halten. */
-.basemap-base { filter: brightness(.42) saturate(.55) contrast(1.05); }
-.basemap-ref  { filter: brightness(.85) saturate(.35); opacity: .7; }
+/* Esri Dark Gray ist ab Werk zu hell fuer die Approach-Palette.
+   Abdunkelung ueber eine feste Scrim-Ebene statt CSS-filter:
+   funktioniert unabhaengig von Filter-Support im Browser.
+   --map-dim = Deckkraft des Schleiers (0 = Original, 1 = schwarz). */
+#radar-map { --map-dim: .68; }
+#radar-map::after {
+  content: ''; position: absolute; inset: 0; z-index: 400;
+  background: #0a0d12; opacity: var(--map-dim);
+  pointer-events: none;
+}
+.basemap-base { filter: saturate(.5); }
+.basemap-ref  { opacity: .9; }
 
 /* Icon-Buttons am Radar */
 #map-btn, #compass-btn {

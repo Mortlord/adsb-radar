@@ -169,6 +169,10 @@ body {
 }
 #radar-map.active { display: block; }
 .leaflet-container { background: #0c0f14; }
+/* Esri Dark Gray ist ab Werk zu hell fuer die Approach-Palette:
+   Basiskacheln abdunkeln, Beschriftungen separat dezent halten. */
+.basemap-base { filter: brightness(.42) saturate(.55) contrast(1.05); }
+.basemap-ref  { filter: brightness(.85) saturate(.35); opacity: .7; }
 
 /* Icon-Buttons am Radar */
 #map-btn, #compass-btn {
@@ -1332,7 +1336,10 @@ function initRadarMap() {
     zoomAnimation:false, fadeAnimation:false, markerZoomAnimation:false, inertia:false
   });
   L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom:16
+    maxZoom:16, className:'basemap-base'
+  }).addTo(radarMap);
+  L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom:16, className:'basemap-ref'
   }).addTo(radarMap);
 }
 

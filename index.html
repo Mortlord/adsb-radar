@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- Content-Security-Policy als zusaetzliche XSS-Verteidigung (Punkt 3).
-     Diese private Seite nutzt Leaflet vom cdnjs-CDN, Kartenkacheln von cartocdn,
+     Diese private Seite nutzt Leaflet vom cdnjs-CDN, Kartenkacheln von Esri
+     (services.arcgisonline.com, Dark Gray Canvas, kein API-Key noetig),
      die eigenen API-/Datenquellen (Railway-Backend als Standard, airplanes.live als Fallback).
      Hinweis: frame-ancestors wirkt nur als HTTP-Header, daher zusaetzlich auf
      dem Static-Host bzw. via Cloudflare setzen. -->
@@ -1330,8 +1331,8 @@ function initRadarMap() {
     keyboard:false, touchZoom:false, tap:false, zoomSnap:0,
     zoomAnimation:false, fadeAnimation:false, markerZoomAnimation:false, inertia:false
   });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    subdomains:'abcd', maxZoom:19
+  L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom:16
   }).addTo(radarMap);
 }
 
@@ -1345,7 +1346,7 @@ function radarMapCenter() {
 function zoomForScale(mpp, lat) {
   const base = 156543.03392804096 * Math.cos(lat * Math.PI/180);
   const z = Math.log2(base / mpp);
-  return Math.max(2, Math.min(19, z));
+  return Math.max(2, Math.min(16, z));
 }
 
 function updateMapView() {

@@ -1170,8 +1170,7 @@ function drawRadar() {
     ctx.lineWidth = i===3 ? 1.5 : .7; ctx.stroke();
     if (f < 1) {
       // nm-Label auf der SO-Diagonale (45°), damit es nicht mit den
-      // Himmelsrichtungs-Buchstaben (N/S/E/W) kollidiert. Kleiner dunkler
-      // Chip dahinter, damit es auch über der Karte lesbar bleibt.
+      // Himmelsrichtungs-Buchstaben (N/S/E/W) kollidiert.
       const diag = Math.SQRT1_2; // cos/sin 45°
       const lx = cx + R*f*diag, ly = cy + R*f*diag;
       ctx.save();
@@ -1180,11 +1179,14 @@ function drawRadar() {
       const txt = `${Math.round(radiusNm*f)}`;
       ctx.font = '10px "IBM Plex Mono", monospace';
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      const w = ctx.measureText(txt).width + 8;
-      ctx.fillStyle = onMap ? 'rgba(12,15,20,.72)' : 'rgba(12,15,20,.55)';
-      ctx.fillRect(-w/2, -8, w, 15);
+      // Kein gefuellter Chip mehr: der harte Rechteckrand hob sich gegen die
+      // abgedunkelte Karte sichtbar ab. Stattdessen weicher Schatten als Halo.
+      ctx.shadowColor = 'rgba(8,11,16,.95)';
+      ctx.shadowBlur = 4;
       ctx.fillStyle = onMap ? 'rgba(180,205,235,.95)' : '#7c8794';
       ctx.fillText(txt, 0, 1);
+      ctx.fillText(txt, 0, 1);
+      ctx.shadowBlur = 0; ctx.shadowColor = 'transparent';
       ctx.restore();
       ctx.textBaseline='alphabetic';
     }

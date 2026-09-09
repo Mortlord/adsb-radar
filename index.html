@@ -6,12 +6,13 @@
 <!-- Content-Security-Policy als zusaetzliche XSS-Verteidigung (Punkt 3).
      Diese private Seite nutzt Leaflet vom cdnjs-CDN, Kartenkacheln von Esri
      (services.arcgisonline.com, Dark Gray Canvas, kein API-Key noetig),
-     die eigenen API-/Datenquellen (Railway-Backend als Standard, airplanes.live als Fallback).
+     die eigenen API-/Datenquellen (Railway-Backend als Standard, adsb.fi bzw. adsb.lol
+     als Direkt-Fallback, falls das eigene Backend nicht erreichbar ist).
      Hinweis: frame-ancestors wirkt nur als HTTP-Header, daher zusaetzlich auf
      dem Static-Host bzw. via Cloudflare setzen. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://api.airplanes.live https://api.adsbdb.com https://api.planespotters.net https://api.adsb-radar.de; font-src 'self'; object-src 'none'; base-uri 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://opendata.adsb.fi https://api.adsb.lol https://api.adsbdb.com https://api.planespotters.net https://api.adsb-radar.de; font-src 'self'; object-src 'none'; base-uri 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'">
 <title>ADSB Radar</title>
-<meta name="description" content="Live ADS-B aircraft radar – powered by adsb.lol">
+<meta name="description" content="Live ADS-B aircraft radar – powered by adsb.fi &amp; adsb.lol">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <style>
@@ -617,7 +618,7 @@ body {
 
 <div id="toast-container"></div>
 <div id="footer">
-  <span id="source-label">Daten: airplanes.live · Routen: adsbdb.com</span>
+  <span id="source-label">Daten: adsb.fi/adsb.lol · Routen: adsbdb.com</span>
   <span id="footer-pos">Pos: –</span>
 </div>
 <div id="spinner">Lade…</div>
@@ -1229,7 +1230,7 @@ function drawRadar() {
     if (ac.lat==null||myLat==null) return;
     const cLat = centerLat();
     const cLon = centerLon();
-    // Im Feeder-Modus ac.dst (kommt von airplanes.live) ignorieren und aus dem
+    // Im Feeder-Modus ac.dst (kommt vom Aggregator) ignorieren und aus dem
     // Pi-Standort neu berechnen – konsistent mit renderList().
     const rawDst = dataSource==='feeder' ? null : ac.dst;
     const dst = rawDst ?? haversine(cLat,cLon,ac.lat,ac.lon);
@@ -1598,13 +1599,13 @@ function updateSourceBtn() {
     btn.style.background = 'var(--panel-2)';
     btn.style.borderColor = 'var(--warn)';
     btn.style.color = 'var(--warn)';
-    if (lbl) lbl.textContent = 'Daten: airplanes.live (Fixpunkt) · Routen: adsbdb.com';
+    if (lbl) lbl.textContent = 'Daten: adsb.fi/adsb.lol (Fixpunkt) · Routen: adsbdb.com';
   } else {
     btn.querySelector('span').textContent = 'Live-Feed';
     btn.style.background = '';
     btn.style.borderColor = '';
     btn.style.color = '';
-    if (lbl) lbl.textContent = 'Daten: airplanes.live · Routen: adsbdb.com';
+    if (lbl) lbl.textContent = 'Daten: adsb.fi/adsb.lol · Routen: adsbdb.com';
   }
 }
 
@@ -1657,21 +1658,36 @@ async function fetchData() {
     } else {
     // Live-Feed: primaer ueber das eigene Backend (Railway-Proxy). Das ist die in den
     // Rechtstexten dokumentierte Architektur: keine direkte Browser-Verbindung zu Dritten.
-    // Nur wenn das eigene Backend nicht erreichbar ist, wird airplanes.live direkt
-    // angefragt (native CORS-Unterstuetzung). Kein Fremd-Proxy mehr.
+    // Nur wenn das eigene Backend nicht erreichbar ist, werden die Aggregatoren direkt
+    // angefragt -- gleiche Reihenfolge wie im Backend: adsb.fi, dann adsb.lol.
+    // Kein Fremd-Proxy mehr.
     const backendUrl = `${PUSH_SERVER}/aircraft?lat=${myLat.toFixed(4)}&lon=${myLon.toFixed(4)}&radius=${radius}`;
-    const directUrl  = `https://api.airplanes.live/v2/point/${myLat.toFixed(4)}/${myLon.toFixed(4)}/${radius}`;
+    const directUrls = [
+      { name: 'adsb.fi',  url: `https://opendata.adsb.fi/api/v3/lat/${myLat.toFixed(4)}/lon/${myLon.toFixed(4)}/dist/${radius}` },
+      { name: 'adsb.lol', url: `https://api.adsb.lol/v2/point/${myLat.toFixed(4)}/${myLon.toFixed(4)}/${radius}` }
+    ];
     try {
       resp = await fetch(backendUrl, { signal: AbortSignal.timeout(10000) });
       if (!resp.ok) throw new Error('backend ' + resp.status);
     } catch {
-      resp = await fetch(directUrl, { signal: AbortSignal.timeout(15000) });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status} (airplanes.live)`);
+      resp = null;
+      let lastMsg = '';
+      for (const src of directUrls) {
+        try {
+          const r = await fetch(src.url, { signal: AbortSignal.timeout(15000) });
+          if (!r.ok) { lastMsg = `HTTP ${r.status} (${src.name})`; continue; }
+          resp = r;
+          break;
+        } catch(e) {
+          lastMsg = `${src.name} nicht erreichbar`;
+        }
+      }
+      if (!resp) throw new Error(lastMsg || 'keine Datenquelle erreichbar');
     }
     }
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
-    // Feeder liefert data.aircraft[], airplanes.live + Fixpunkt liefern data.ac[]
+    // Feeder liefert data.aircraft[], adsb.fi/adsb.lol + Fixpunkt liefern data.ac[] (adsb.fi teils 'aircraft')
     const acList = data.ac || data.aircraft || [];
     const prevHexes = new Set(knownHexes);
     const fresh = {};
@@ -1727,7 +1743,7 @@ function renderList() {
   const acArr = Object.values(aircraft)
     .filter(ac => ac.lat!=null||ac.dst!=null)
     .map(ac => {
-        // Im Feeder-Modus: ac.dst ignorieren (kommt von airplanes.live), neu berechnen
+        // Im Feeder-Modus: ac.dst ignorieren (kommt vom Aggregator), neu berechnen
         const rawDst = dataSource==='feeder' ? null : ac.dst;
         ac._dst = rawDst ?? (ac.lat!=null ? haversine(cLat,cLon,ac.lat,ac.lon) : 9999);
         return ac;

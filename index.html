@@ -174,17 +174,14 @@ body {
    Abdunkelung ueber eine feste Scrim-Ebene statt CSS-filter:
    funktioniert unabhaengig von Filter-Support im Browser.
    --map-dim = Deckkraft des Schleiers (0 = Original, 1 = schwarz). */
-#radar-map { --map-dim: .68; }
-#radar-map::after {
-  content: ''; position: absolute; inset: 0; z-index: 400;
-  background: #0a0d12; opacity: var(--map-dim);
-  pointer-events: none;
-}
+/* Abdunkelung als eigene Leaflet-Ebene (Pane "scrim", z-index 250) direkt ueber den
+   Kartenkacheln, damit das Regenradar (Pane "wx", z-index 300) NICHT mit abgedunkelt wird.
+   Deckkraft entspricht dem frueheren ::after-Schleier (--map-dim .68). */
 .basemap-base { filter: saturate(.5); }
 .basemap-ref  { opacity: .9; }
 
 /* Icon-Buttons am Radar */
-#map-btn, #compass-btn {
+#map-btn, #compass-btn, #metar-btn, #wx-btn {
   position: absolute; right: 14px; z-index: 2;
   width: 34px; height: 34px;
   display: flex; align-items: center; justify-content: center;
@@ -195,9 +192,9 @@ body {
 }
 #map-btn { top: 14px; }
 #compass-btn { top: 54px; }
-#map-btn svg, #compass-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; }
-#map-btn:hover, #compass-btn:hover { border-color: var(--accent-dim); color: var(--ink); }
-#map-btn.active, #compass-btn.active {
+#map-btn svg, #compass-btn svg, #metar-btn svg, #wx-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; }
+#map-btn:hover, #compass-btn:hover, #metar-btn:hover, #wx-btn:hover { border-color: var(--accent-dim); color: var(--ink); }
+#map-btn.active, #compass-btn.active, #metar-btn.active, #wx-btn.active {
   background: rgba(74,159,212,.16); border-color: var(--accent); color: var(--accent);
 }
 
@@ -322,6 +319,27 @@ body {
 #detail-panel.visible { display: block; }
 #detail-panel::-webkit-scrollbar { width: 4px; }
 #detail-panel::-webkit-scrollbar-thumb { background: var(--line); }
+#metar-panel { position: fixed; top: 50px; right: 0; width: 330px; max-height: calc(100vh - 60px);
+  background: var(--panel); border: 1px solid var(--line); border-right: none;
+  border-radius: var(--r) 0 0 var(--r); overflow-y: auto; display: none; z-index: 100;
+  font-size: 0.75rem; box-shadow: -6px 0 30px rgba(0,0,0,.4); }
+#metar-panel.visible { display: block; }
+.mt-age { color: var(--ink-dim); font-size: 0.66rem; font-family: var(--mono); margin-top: 4px; }
+.mt-age.old { color: var(--warn); }
+.mt-wind { display: inline-flex; align-items: center; gap: 4px; }
+.mt-wind svg { width: 13px; height: 13px; stroke: var(--accent); fill: none; }
+.mt-sub { display: block; font-size: 0.62rem; color: var(--ink-dim); font-family: var(--sans); margin-top: 2px; }
+.mt-wx { font-size: 0.8rem; color: var(--ink); margin: 2px 0; }
+.mt-wx.alert { color: var(--warn); }
+.mt-cloud { display: grid; grid-template-columns: minmax(0,1fr) 64px 64px; gap: 10px; align-items: center;
+  font-size: 0.74rem; padding: 3px 0; }
+.mt-cloud.alert { color: var(--warn); }
+.mt-cloud .bar { height: 4px; border-radius: 2px; background: var(--line); position: relative; overflow: hidden; }
+.mt-cloud .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink-mid); }
+.mt-cloud.alert .bar i { background: var(--warn); }
+.mt-cloud .ft { text-align: right; font-family: var(--mono); color: var(--ink-mid); }
+.mt-raw { font-family: var(--mono); font-size: 0.64rem; color: var(--ink-dim); word-break: break-word; line-height: 1.5; }
+.mt-credit { font-size: 0.6rem; color: var(--ink-dim); margin-top: 8px; }
 
 .dp-header {
   padding: 14px 16px 10px;
@@ -489,12 +507,12 @@ body {
   .ac-row { padding: 8px 8px; min-height: 36px; }
   .col-type { display: none !important; }
 
-  #detail-panel {
+  #detail-panel, #metar-panel {
     top: auto; bottom: 0; right: 0; left: 0; width: 100%;
     max-height: 62vh; border-radius: 10px 10px 0 0;
     border-right: 1px solid var(--line); border-left: 1px solid var(--line); border-bottom: none;
   }
-  #detail-panel::before {
+  #detail-panel::before, #metar-panel::before {
     content: ''; display: block; width: 36px; height: 4px;
     background: var(--line); border-radius: 2px; margin: 8px auto 0;
   }
@@ -540,7 +558,7 @@ body {
 </div>
 
 <div id="main">
-  <div id="radar-panel"><div id="radar-map"></div><canvas id="radar-canvas"></canvas><button id="map-btn" onclick="toggleMapMode()" title="Karte als Hintergrund ein/aus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg></button><button id="compass-btn" onclick="toggleCompass()" title="Radar an Blickrichtung ausrichten" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/></svg></button></div>
+  <div id="radar-panel"><div id="radar-map"></div><canvas id="radar-canvas"></canvas><button id="map-btn" onclick="toggleMapMode()" title="Karte als Hintergrund ein/aus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg></button><button id="metar-btn" onclick="toggleMetar()" title="Flughäfen mit Wetter (METAR) ein/aus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9a3 3 0 1 0-3-3"/><path d="M3 12h14a3 3 0 1 1-3 3"/><path d="M3 16h6"/></svg></button><button id="wx-btn" onclick="toggleWx()" title="Regenradar (DWD) ein/aus" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15a4.5 4.5 0 1 1 1.4-8.8A5.5 5.5 0 0 1 19 8.5a3.5 3.5 0 0 1-1 6.5H7Z"/><path d="M8 18l-1 2.5M12 18l-1 2.5M16 18l-1 2.5"/></svg></button><button id="compass-btn" onclick="toggleCompass()" title="Radar an Blickrichtung ausrichten" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/></svg></button></div>
   <div id="list-panel">
     <div id="fav-panel">
       <button id="fav-toggle" onclick="toggleFavPanel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8L3.5 9.7l5.9-.9z"/></svg><span>Favoriten</span> <span id="fav-count"></span></button>
@@ -613,8 +631,9 @@ body {
       <div class="dp-field"><label>Signal</label><span id="dp-rssi">–</span></div>
     </div>
   </div>
-  </div>
 </div>
+
+<div id="metar-panel" role="dialog" aria-label="Flughafenwetter"></div>
 
 <div id="toast-container"></div>
 <div id="footer">
@@ -792,7 +811,7 @@ async function init() {
   // Änderungen speichern
   document.getElementById('radius-input').addEventListener('change', () => {
     localStorage.setItem('userRadius', document.getElementById('radius-input').value);
-    mapApplied = null; drawRadar();
+    mapApplied = null; drawRadar(); maybeFetchMetar();
   });
   document.getElementById('alert-input').addEventListener('change', () => {
     localStorage.setItem('userAlert', document.getElementById('alert-input').value);
@@ -817,7 +836,11 @@ async function init() {
   loadFavorites();   // Server-Wahrheit beim Start laden (geräteübergreifend)
   const _mb = document.getElementById('map-btn');
   if (_mb) _mb.classList.toggle('active', mapMode);
+  const _metb = document.getElementById('metar-btn');
+  if (_metb) _metb.classList.toggle('active', metarOn);
   initCompassButton();
+  updateWxButton();
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMetarPanel(); });
 
   // Aktivierungscode (Token) laden
   const input = document.getElementById('tg-chat-id');
@@ -844,6 +867,10 @@ let dataSource    = 'live';   // 'live' | 'feeder' | 'fixpoint'
 let feederOnline  = false;    // wird beim Start geprüft
 let fixpointOnline = false;   // wird beim Start geprüft
 let mapMode    = localStorage.getItem('radarMapMode') === '1';  // Karten-Hintergrund an/aus
+let metarOn    = localStorage.getItem('radarMetar') === '1';    // Flughaefen mit Wetter (METAR)
+let wxOn       = localStorage.getItem('radarWx') === '1';       // Regenradar (DWD), nur im Feeder-Modus
+let selectedApt = null;      // ICAO des Flughafens im METAR-Panel
+let aptHits     = [];        // {x,y,st} je gezeichnetem Flughafen
 let radarMap   = null;
 let mapApplied = null;
 
@@ -944,6 +971,7 @@ function initCompassButton() {
                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const hasOrientation = typeof DeviceOrientationEvent !== 'undefined';
   if (isIOS && hasOrientation) b.style.display = 'flex';
+  layoutRadarButtons();
 }
 
 let favToken = localStorage.getItem('fav_token') || '';
@@ -1023,7 +1051,7 @@ const ctx = canvas.getContext('2d');
 // Grosszuegige Hitbox fuer Touch; bei mehreren Treffern das naechstgelegene.
 const RADAR_HIT_RADIUS = 24;
 canvas.addEventListener('pointerup', (e) => {
-  if (!radarHits.length) return;
+  if (!radarHits.length && !aptHits.length) return;
   const rect = canvas.getBoundingClientRect();
   const px = e.clientX - rect.left;
   const py = e.clientY - rect.top;
@@ -1032,7 +1060,14 @@ canvas.addEventListener('pointerup', (e) => {
     const d = Math.hypot(h.x - px, h.y - py);
     if (d <= bestD) { bestD = d; best = h; }
   }
-  if (best) selectAircraft(best.hex);
+  if (best) { selectAircraft(best.hex); return; }
+  // Kein Flugzeug getroffen: naechster Flughafen mit Wetter
+  let apt = null, aptD = 18;
+  for (const h of aptHits) {
+    const d = Math.hypot(h.x - px, h.y - py);
+    if (d <= aptD) { aptD = d; apt = h; }
+  }
+  if (apt) openMetarPanel(apt.st);
 });
 
 function resizeCanvas() {
@@ -1088,7 +1123,7 @@ function drawRadar() {
   const hdgRad = hdg * Math.PI / 180;
 
   ctx.clearRect(0, 0, W, H);
-  if (!onMap) {
+  if (!onMap && !wxActive()) {
     ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2);
     ctx.fillStyle = '#0c0f14'; ctx.fill();
   }
@@ -1163,6 +1198,8 @@ function drawRadar() {
   // Labels erst sammeln und nach der Szene mit Kollisionsauflösung zeichnen.
   radarHits = [];
   const labelJobs = [];
+  if (!metarOn) aptHits = [];
+  const aptLabels = metarOn ? drawAirports(cx, cy, R, radiusNm, hdgRad) : [];
   Object.values(aircraft).forEach(ac => {
     if (ac.lat==null||myLat==null) return;
     const cLat = centerLat();
@@ -1202,6 +1239,7 @@ function drawRadar() {
 
   ctx.restore(); // Ende Szenen-Rotation — Labels folgen im Bildschirmraum
 
+  drawAirportLabels(aptLabels);
   drawRadarLabels(labelJobs, R, cx, cy);
 
   // me — Mittelpunkt, dreht sich nicht
@@ -1275,6 +1313,8 @@ function drawRadarLabels(jobs, R, cx, cy) {
   ctx.textBaseline = 'alphabetic';
 }
 
+let baseLayers = null;   // { base, ref, scrim } – nur bei mapMode sichtbar
+let wxLayer    = null;   // DWD-Regenradar – nur im Feeder-Modus mit wxOn
 function initRadarMap() {
   if (radarMap) return;
   radarMap = L.map('radar-map', {
@@ -1283,12 +1323,55 @@ function initRadarMap() {
     keyboard:false, touchZoom:false, tap:false, zoomSnap:0,
     zoomAnimation:false, fadeAnimation:false, markerZoomAnimation:false, inertia:false
   });
-  L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom:16, className:'basemap-base'
-  }).addTo(radarMap);
-  L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom:16, className:'basemap-ref'
-  }).addTo(radarMap);
+  // Ebenenfolge: Kacheln (200) < Schleier (250) < Regenradar (300)
+  radarMap.createPane('scrim').style.zIndex = 250;
+  radarMap.createPane('wx').style.zIndex = 300;
+  radarMap.getPane('wx').style.pointerEvents = 'none';
+  baseLayers = {
+    base: L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom:16, className:'basemap-base'
+    }),
+    ref: L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom:16, className:'basemap-ref'
+    }),
+    scrim: L.rectangle([[-85,-180],[85,180]], {
+      pane:'scrim', renderer:L.svg({ pane:'scrim' }), interactive:false,
+      stroke:false, fillColor:'#0a0d12', fillOpacity:.68
+    })
+  };
+}
+
+// Regenradar nur fuer den eigenen Feeder-Bereich
+function wxActive() { return wxOn && dataSource === 'feeder'; }
+
+// Ebenen passend zu Karte/Regenradar ein- bzw. ausblenden
+function applyMapLayers() {
+  if (!radarMap || !baseLayers) return;
+  for (const l of Object.values(baseLayers)) {
+    if (mapMode && !radarMap.hasLayer(l)) l.addTo(radarMap);
+    if (!mapMode && radarMap.hasLayer(l)) radarMap.removeLayer(l);
+  }
+  if (wxActive()) {
+    if (!wxLayer) {
+      // DWD-Niederschlagsradar (Radarkomposit, alle 5 Minuten neu). Quelle: Deutscher Wetterdienst
+      wxLayer = L.tileLayer.wms('https://maps.dwd.de/geoserver/dwd/wms', {
+        layers:'dwd:Niederschlagsradar', format:'image/png', transparent:true,
+        version:'1.3.0', pane:'wx', opacity:.75, maxZoom:16, _t: wxStamp()
+      });
+    }
+    if (!radarMap.hasLayer(wxLayer)) wxLayer.addTo(radarMap);
+  } else if (wxLayer && radarMap.hasLayer(wxLayer)) {
+    radarMap.removeLayer(wxLayer);
+  }
+}
+// Zeitstempel auf 5 Minuten gerundet: Browser-Cache greift innerhalb eines Radarbilds,
+// beim naechsten Bild werden die Kacheln neu geladen
+function wxStamp() { return Math.floor(Date.now() / 300000); }
+function refreshWx() {
+  if (wxLayer && radarMap && radarMap.hasLayer(wxLayer)) {
+    const t = wxStamp();
+    if (wxLayer.wmsParams._t !== t) wxLayer.setParams({ _t: t });
+  }
 }
 
 function radarMapCenter() {
@@ -1307,7 +1390,7 @@ function zoomForScale(mpp, lat) {
 function updateMapView() {
   const mapEl = document.getElementById('radar-map');
   if (!mapEl) return;
-  if (!mapMode) { mapEl.classList.remove('active'); return; }
+  if (!mapMode && !wxActive()) { mapEl.classList.remove('active'); return; }
   const center = radarMapCenter();
   if (!center) { mapEl.classList.remove('active'); return; }
 
@@ -1320,6 +1403,7 @@ function updateMapView() {
   mapEl.classList.add('active');
 
   initRadarMap();
+  applyMapLayers();
 
   const R = size/2 - 4;                       // Pixelradius wie im Radar
   const radiusNm = parseInt(document.getElementById('radius-input').value) || 40;
@@ -1341,6 +1425,334 @@ function toggleMapMode() {
   if (btn) btn.classList.toggle('active', mapMode);
   mapApplied = null;
   drawRadar();
+}
+
+// ══════════════════════════════════════════════
+// REGENRADAR (DWD) UND FLUGHAFENWETTER (METAR)
+// ══════════════════════════════════════════════
+function toggleWx() {
+  wxOn = !wxOn;
+  localStorage.setItem('radarWx', wxOn ? '1' : '0');
+  updateWxButton();
+  updateSourceBtn();
+  mapApplied = null;
+  drawRadar();
+}
+// Regenradar-Knopf nur im Feeder-Modus zeigen
+function updateWxButton() {
+  const b = document.getElementById('wx-btn');
+  if (!b) return;
+  b.style.display = dataSource === 'feeder' ? 'flex' : 'none';
+  b.classList.toggle('active', wxOn);
+  layoutRadarButtons();
+}
+// Sichtbare Knoepfe am Radar untereinander stapeln
+function layoutRadarButtons() {
+  let top = 14;
+  for (const id of ['map-btn', 'compass-btn', 'metar-btn', 'wx-btn']) {
+    const b = document.getElementById(id);
+    if (!b || b.style.display === 'none') continue;
+    b.style.top = top + 'px';
+    top += 40;
+  }
+}
+
+function toggleMetar() {
+  metarOn = !metarOn;
+  localStorage.setItem('radarMetar', metarOn ? '1' : '0');
+  const b = document.getElementById('metar-btn');
+  if (b) b.classList.toggle('active', metarOn);
+  if (metarOn) maybeFetchMetar(true); else closeMetarPanel();
+  updateSourceBtn();
+  drawRadar();
+}
+
+// Daten vom eigenen Server (/metar). Nur Stationen mit aktueller Meldung,
+// also ausschliesslich Flughaefen, die tatsaechlich ein METAR senden.
+const METAR_REFRESH_MS = 10 * 60 * 1000;
+const METAR_RETRY_MS   = 15000;
+const metarData = { stations: [], center: null, radius: null, ts: 0, busy: false, lastTry: 0 };
+
+function maybeFetchMetar(force) {
+  const cLat = centerLat(), cLon = centerLon();
+  if (!metarOn || cLat == null || cLon == null || metarData.busy) return;
+  const now = Date.now();
+  if (force !== true && now - metarData.lastTry < METAR_RETRY_MS) return;
+  const radiusNm = parseInt(document.getElementById('radius-input').value) || 40;
+  const m = metarData;
+  const moved = !m.center || haversine(m.center[0], m.center[1], cLat, cLon) > Math.max(3, radiusNm * 0.25);
+  if (force !== true && !moved && m.radius === radiusNm && now - m.ts < METAR_REFRESH_MS) return;
+  fetchMetar(cLat, cLon, radiusNm);
+}
+async function fetchMetar(cLat, cLon, radiusNm) {
+  metarData.busy = true; metarData.lastTry = Date.now();
+  try {
+    const r = await fetch(`${PUSH_SERVER}/metar?lat=${cLat.toFixed(2)}&lon=${cLon.toFixed(2)}&radius=${radiusNm}`,
+                          { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    if (!Array.isArray(j.stations)) throw new Error('malformed response');
+    metarData.stations = j.stations
+      .filter(st => st && typeof st.icao === 'string' && typeof st.lat === 'number' && typeof st.lon === 'number')
+      .map(st => ({ ...st, d: decodeMetar(st) }));
+    metarData.center = [cLat, cLon]; metarData.radius = radiusNm; metarData.ts = Date.now();
+    if (selectedApt) {
+      const st = metarData.stations.find(x => x.icao === selectedApt);
+      if (st) renderMetarPanel(st);
+    }
+    drawRadar();
+  } catch (e) {
+    console.warn('METAR:', e.message);
+  } finally {
+    metarData.busy = false;
+  }
+}
+
+// ---- Dekodierung ----
+const WX_PRECIP = { DZ:'Nieselregen', RA:'Regen', SN:'Schnee', SG:'Schneegriesel', IC:'Eisnadeln',
+  PL:'Eiskörner', GR:'Hagel', GS:'Graupel', UP:'Niederschlag' };
+const WX_SHOWER = { RA:'Regenschauer', SN:'Schneeschauer', GR:'Hagelschauer', GS:'Graupelschauer',
+  PL:'Eiskörnerschauer', SG:'Schneegrieselschauer' };
+const WX_OTHER = { BR:'feuchter Dunst', FG:'Nebel', FU:'Rauch', VA:'Vulkanasche', DU:'Staub', SA:'Sand',
+  HZ:'trockener Dunst', PO:'Staubwirbel', SQ:'Sturmböen', FC:'Trichterwolke', SS:'Sandsturm', DS:'Staubsturm' };
+const WX_RE = /^(\+|-|VC)?((?:MI|PR|BC|DR|BL|SH|TS|FZ)*)((?:DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PO|SQ|FC|SS|DS)*)$/;
+const COVER = { FEW:{t:'Wenige',w:25}, SCT:{t:'Aufgelockert',w:50}, BKN:{t:'Durchbrochen',w:80},
+  OVC:{t:'Bedeckt',w:100}, OVX:{t:'Vertikalsicht',w:100}, VV:{t:'Vertikalsicht',w:100} };
+
+function wxText(tok) {
+  const m = WX_RE.exec(tok); if (!m || (!m[2] && !m[3])) return null;
+  const pairs = s => (s.match(/../g) || []);
+  const desc = pairs(m[2]), ph = pairs(m[3]);
+  const name = p => WX_PRECIP[p] || WX_OTHER[p] || p;
+  const and = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' und ' + a[a.length - 1] : (a[0] || '');
+  let t;
+  if (desc.includes('TS'))      t = 'Gewitter' + (ph.length ? ' mit ' + and(ph.map(name)) : '');
+  else if (desc.includes('SH')) t = ph.length ? and(ph.map(p => WX_SHOWER[p] || name(p) + 'schauer')) : 'Schauer';
+  else if (desc.includes('FZ')) t = ph.includes('FG') ? 'gefrierender Nebel' : 'gefrierender ' + and(ph.map(name));
+  else if (desc.includes('MI') && ph.includes('FG')) t = 'flacher Nebel';
+  else if (desc.includes('BC') && ph.includes('FG')) t = 'Nebelschwaden';
+  else if (desc.includes('PR') && ph.includes('FG')) t = 'teilweise Nebel';
+  else if (desc.includes('BL') && ph.includes('SN')) t = 'Schneetreiben';
+  else if (desc.includes('DR') && ph.includes('SN')) t = 'Schneefegen';
+  else t = and(ph.map(name));
+  if (!t) return null;
+  t = t.charAt(0).toUpperCase() + t.slice(1);
+  if (m[1] === '-') t += ' (leicht)';
+  else if (m[1] === '+') t += ' (stark)';
+  else if (m[1] === 'VC') t += ' in der Umgebung';
+  const hazard = desc.includes('TS') || desc.includes('FZ') || m[1] === '+' ||
+                 ph.some(p => ['GR','SQ','FC','SS','DS','VA'].includes(p));
+  return { t, hazard };
+}
+
+// Rohmeldung zerlegen; Zahlenwerte der Quelle dienen als Rueckfall
+function decodeMetar(st) {
+  const toks = String(st.raw || '').trim().split(/\s+/);
+  let i = 0;
+  if (/^(METAR|SPECI)$/.test(toks[i])) i++;
+  i++;                                      // Stationskennung
+  if (/^\d{6}Z$/.test(toks[i])) i++;        // Zeitgruppe
+  const d = { wdir: st.wdir, wspd: st.wspd, wgst: st.wgst, wvar: null, visM: null, cavok: false,
+              clouds: [], noClouds: null, wx: [], temp: st.temp, dewp: st.dewp, qnh: st.altim,
+              trend: null, cat: st.fltCat || null };
+  let rawClouds = false;
+  for (; i < toks.length; i++) {
+    const t = toks[i];
+    if (t === 'RMK') break;
+    if (/^(NOSIG|BECMG|TEMPO)$/.test(t)) { d.trend = toks.slice(i).join(' ').split(' RMK')[0]; break; }
+    let m;
+    if ((m = /^(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)$/.exec(t))) {
+      const f = m[4] === 'MPS' ? 1.943844 : 1;
+      d.wdir = m[1] === 'VRB' ? 'VRB' : +m[1]; d.wspd = Math.round(+m[2] * f); d.wgst = m[3] ? Math.round(+m[3] * f) : null; continue;
+    }
+    if ((m = /^(\d{3})V(\d{3})$/.exec(t))) { d.wvar = [+m[1], +m[2]]; continue; }
+    if (t === 'CAVOK') { d.cavok = true; d.visM = 10000; continue; }
+    if ((m = /^(\d{4})(NDV)?$/.exec(t)) && d.visM == null) { d.visM = +m[1]; continue; }
+    if ((m = /^(P|M)?(\d+)(?:\/(\d+))?SM$/.exec(t)) && d.visM == null) {
+      const sm = m[3] ? +m[2] / +m[3] : +m[2]; d.visM = Math.round(sm * 1609.34); if (m[1] === 'P') d.visM = Math.max(d.visM, 10000); continue;
+    }
+    if ((m = /^(FEW|SCT|BKN|OVC|VV)(\d{3}|\/\/\/)(CB|TCU|\/\/\/)?$/.exec(t))) {
+      rawClouds = true;
+      d.clouds.push({ cover: m[1], base: m[2] === '///' ? null : +m[2] * 100, type: (m[3] === 'CB' || m[3] === 'TCU') ? m[3] : null }); continue;
+    }
+    if (/^(NSC|SKC|CLR|NCD)$/.test(t)) { d.noClouds = t; continue; }
+    if ((m = /^(M?\d{2})\/(M?\d{2})?$/.exec(t))) {
+      const n = x => x == null ? null : (x.startsWith('M') ? -(+x.slice(1)) : +x);
+      d.temp = n(m[1]); if (m[2] != null) d.dewp = n(m[2]); continue;
+    }
+    if ((m = /^Q(\d{4})$/.exec(t))) { d.qnh = +m[1]; continue; }
+    if ((m = /^A(\d{4})$/.exec(t))) { d.qnh = Math.round(+m[1] / 100 * 33.8639); continue; }
+    if (/^RE/.test(t)) continue;           // kuerzlich beobachtetes Wetter
+    if (t.length >= 2 && t.length <= 9) { const w = wxText(t); if (w) d.wx.push(w); }
+  }
+  if (!rawClouds && !d.noClouds && !d.cavok && Array.isArray(st.clouds)) {
+    for (const c of st.clouds) {
+      if (COVER[c.cover]) d.clouds.push({ cover: c.cover, base: c.base, type: null });
+      else if (/^(SKC|CLR|NSC|NCD|CAVOK)$/.test(c.cover)) d.noClouds = c.cover;
+    }
+  }
+  if (d.visM == null && typeof st.visSm === 'number') d.visM = Math.round(st.visSm * 1609.34);
+  d.cb = d.clouds.some(c => c.type === 'CB');
+  d.hazard = d.cb || d.wx.some(w => w.hazard);
+  d.alert = d.hazard || d.cat === 'IFR' || d.cat === 'LIFR';
+  return d;
+}
+
+// ---- Radar: Flughaefen als offene Kreise (in der rotierten Szene) ----
+// Amber bei Gewitter/CB oder IFR/LIFR, Punkt in der Mitte bei Gewitter/CB, blau wenn ausgewaehlt.
+function drawAirports(cx, cy, R, radiusNm, hdgRad) {
+  aptHits = [];
+  const labels = [];
+  const cLat = centerLat(), cLon = centerLon();
+  if (cLat == null || cLon == null) return labels;
+  const ca = Math.cos(-hdgRad), sa = Math.sin(-hdgRad);
+  for (const st of metarData.stations) {
+    const dst = haversine(cLat, cLon, st.lat, st.lon);
+    if (dst > radiusNm) continue;
+    const rad = (bearingTo(cLat, cLon, st.lat, st.lon) - 90) * Math.PI / 180;
+    const x = cx + R * (dst / radiusNm) * Math.cos(rad), y = cy + R * (dst / radiusNm) * Math.sin(rad);
+    const sx = cx + (x - cx) * ca - (y - cy) * sa;
+    const sy = cy + (x - cx) * sa + (y - cy) * ca;
+    const sel = st.icao === selectedApt;
+    const col = sel ? '#4a9fd4' : st.d.alert ? '#d98a3d' : '#97a2af';
+    ctx.beginPath(); ctx.arc(x, y, sel ? 6 : 4.5, 0, Math.PI * 2);
+    ctx.strokeStyle = col; ctx.lineWidth = sel ? 1.8 : 1.3; ctx.globalAlpha = sel ? 1 : .9; ctx.stroke();
+    if (st.d.hazard) { ctx.beginPath(); ctx.arc(x, y, 1.7, 0, Math.PI * 2); ctx.fillStyle = '#d98a3d'; ctx.fill(); }
+    ctx.globalAlpha = 1;
+    aptHits.push({ x: sx, y: sy, st });
+    labels.push({ icao: st.icao, sx, sy, col, sel });
+  }
+  return labels;
+}
+// ICAO-Kennungen im Bildschirmraum (nicht mitdrehen), ohne gegenseitige Ueberlappung
+function drawAirportLabels(labels) {
+  if (!labels.length) return;
+  const placed = [];
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  labels.sort((a, b) => b.sel - a.sel);
+  for (const l of labels) {
+    ctx.font = (l.sel ? '600 ' : '') + '9px "IBM Plex Mono", monospace';
+    const w = ctx.measureText(l.icao).width, x = l.sx + 8, y = l.sy;
+    const r = { x, y: y - 6, w, h: 12 };
+    if (!l.sel && placed.some(p => r.x < p.x + p.w + 3 && r.x + r.w + 3 > p.x && r.y < p.y + p.h && r.y + r.h > p.y)) continue;
+    placed.push(r);
+    ctx.shadowColor = 'rgba(8,11,16,.95)'; ctx.shadowBlur = 3;
+    ctx.fillStyle = l.col; ctx.globalAlpha = l.sel ? 1 : .85;
+    ctx.fillText(l.icao, x, y);
+    ctx.shadowBlur = 0; ctx.shadowColor = 'transparent'; ctx.globalAlpha = 1;
+  }
+  ctx.textBaseline = 'alphabetic';
+}
+
+// ---- Panel ----
+const mEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const mInt = n => Number(n).toLocaleString('de-DE');
+const mDec = (n, dig) => Number(n).toLocaleString('de-DE', { minimumFractionDigits: dig, maximumFractionDigits: dig });
+function mVis(m) {
+  if (m == null) return null;
+  if (m >= 9999) return '10 km+';
+  if (m >= 5000) return mInt(Math.round(m / 1000)) + ' km';
+  if (m >= 1000) return mDec(Math.round(m / 100) / 10, 1) + ' km';
+  return mInt(Math.round(m / 50) * 50) + ' m';
+}
+function mAge(ms) {
+  const min = Math.max(0, Math.round(ms / 60000));
+  if (min < 60) return `vor ${min} Min.`;
+  const h = Math.floor(min / 60), r = min % 60;
+  return `vor ${h} Std.${r ? ` ${r} Min.` : ''}`;
+}
+function mTrend(t) {
+  if (!t) return null;
+  if (t === 'NOSIG') return 'keine wesentliche Änderung erwartet';
+  return t.replace(/^TEMPO\b/, 'zeitweise').replace(/^BECMG\b/, 'übergehend');
+}
+const CAT_TEXT = { VFR:'Sichtflugbedingungen', MVFR:'Eingeschränkte Sichtflugbedingungen',
+  IFR:'Instrumentenflugbedingungen', LIFR:'Schlechte Instrumentenflugbedingungen' };
+const pad3 = n => String(Math.round(n)).padStart(3, '0');
+
+function openMetarPanel(st) {
+  // Flugzeug-Details schliessen, damit nur ein Panel offen ist
+  if (selectedHex) { selectedHex = null; document.getElementById('detail-panel').classList.remove('visible'); renderList(); }
+  selectedApt = st.icao;
+  renderMetarPanel(st);
+  document.getElementById('metar-panel').classList.add('visible');
+  drawRadar();
+}
+function closeMetarPanel(silent) {
+  const p = document.getElementById('metar-panel');
+  if (!selectedApt && !(p && p.classList.contains('visible'))) return;
+  selectedApt = null;
+  if (p) p.classList.remove('visible');
+  if (silent !== true) drawRadar();
+}
+
+function renderMetarPanel(st) {
+  const d = st.d;
+  const name = (st.name || '').split(',')[0].replace(/\s+(Arpt|Airport|Intl|Int'l)\b\.?/gi, '').trim();
+  const age = st.obsTime != null ? Date.now() - st.obsTime : null;
+  const old = age != null && age > 75 * 60000;
+  const utc = st.obsTime != null ? new Date(st.obsTime).toISOString().slice(11, 16) : null;
+  const catAlert = d.cat === 'IFR' || d.cat === 'LIFR';
+
+  let html = `<div class="dp-header">
+    <span class="dp-close" onclick="closeMetarPanel()">✕</span>
+    <div class="dp-callsign">${mEsc(st.icao)}</div>
+    <div class="dp-badges">${d.cat ? `<span class="badge ${catAlert ? 'badge-alert' : 'badge-type'}" title="${mEsc(CAT_TEXT[d.cat] || '')}">${mEsc(d.cat)}</span>` : ''}${d.hazard ? '<span class="badge badge-alert">GEWITTER/GEFAHR</span>' : ''}</div>
+    <div class="dp-airline">${mEsc(name || 'Flughafen')}</div>
+    ${utc ? `<div class="mt-age${old ? ' old' : ''}">${utc} UTC · ${mAge(age)}${old ? ' · möglicherweise veraltet' : ''}</div>` : ''}
+  </div>`;
+
+  // Wind
+  let windV = '–', windD = '';
+  if (d.wspd === 0 && !d.wgst) windV = 'windstill';
+  else if (d.wspd != null) {
+    const arrow = (typeof d.wdir === 'number')
+      ? `<svg viewBox="0 0 24 24" style="transform:rotate(${(d.wdir + 180) % 360}deg)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V5M7 10l5-5 5 5"/></svg>` : '';
+    windV = `<span class="mt-wind">${arrow}${d.wdir === 'VRB' ? 'VRB' : (d.wdir != null ? pad3(d.wdir) + '°' : '')} ${Math.round(d.wspd)} kt</span>`;
+    const parts = [];
+    if (d.wgst) parts.push(`Böen ${Math.round(d.wgst)} kt`);
+    if (d.wvar) parts.push(`schwankend ${pad3(d.wvar[0])}° bis ${pad3(d.wvar[1])}°`);
+    windD = parts.join(', ');
+  }
+  const field = (k, v, sub) => `<div class="dp-field"><label>${k}</label><span>${v}${sub ? `<span class="mt-sub">${mEsc(sub)}</span>` : ''}</span></div>`;
+  html += `<div class="dp-section"><div class="dp-section-title">Wetter</div><div class="dp-grid">
+    ${field('Wind', windV, windD)}
+    ${field('Sicht', mEsc(mVis(d.visM) || '–'), d.cavok ? 'CAVOK' : '')}
+    ${field('Temperatur', d.temp != null ? `${Math.round(d.temp)} °C` : '–', d.dewp != null ? `Taupunkt ${Math.round(d.dewp)} °C` : '')}
+    ${field('QNH', d.qnh != null ? `${Math.round(d.qnh)} hPa` : '–', '')}
+  </div></div>`;
+
+  if (d.wx.length) {
+    html += `<div class="dp-section"><div class="dp-section-title">Wettererscheinungen</div>${
+      d.wx.map(w => `<div class="mt-wx${w.hazard ? ' alert' : ''}">${mEsc(w.t)}</div>`).join('')}</div>`;
+  }
+
+  let cl = '';
+  if (d.clouds.length) {
+    cl = d.clouds.map(c => {
+      const cv = COVER[c.cover] || { t: c.cover, w: 50 };
+      const typ = c.type === 'CB' ? ', Gewitterwolke' : c.type === 'TCU' ? ', Quellwolke' : '';
+      return `<div class="mt-cloud${c.type === 'CB' ? ' alert' : ''}"><span>${mEsc(cv.t + typ)}</span>` +
+        `<span class="bar"><i style="width:${cv.w}%"></i></span>` +
+        `<span class="ft">${c.base != null ? mInt(c.base) + ' ft' : '–'}</span></div>`;
+    }).join('');
+  } else if (d.cavok) cl = `<div class="mt-cloud"><span>Keine Wolken unter 5.000 ft</span></div>`;
+  else if (d.noClouds) cl = `<div class="mt-cloud"><span>Keine nennenswerten Wolken</span></div>`;
+  if (cl) html += `<div class="dp-section"><div class="dp-section-title">Wolken (über Grund)</div>${cl}</div>`;
+
+  const cLat = centerLat(), cLon = centerLon();
+  const dist = (cLat != null && cLon != null) ? haversine(cLat, cLon, st.lat, st.lon) : null;
+  const brg  = (cLat != null && cLon != null) ? bearingTo(cLat, cLon, st.lat, st.lon) : null;
+  html += `<div class="dp-section"><div class="dp-grid">
+    ${field('Entfernung', dist != null ? mDec(dist, 1) + ' nm' : '–', '')}
+    ${field('Richtung', brg != null ? pad3(brg) + '°' : '–', '')}
+    ${field('Platzhöhe', st.elev != null ? mInt(Math.round(st.elev * 3.28084 / 10) * 10) + ' ft' : '–', '')}
+    ${field('Trend', mEsc(mTrend(d.trend) || '–'), '')}
+  </div></div>`;
+
+  if (st.raw) html += `<div class="dp-section"><div class="dp-section-title">METAR</div><div class="mt-raw">${mEsc(st.raw)}</div>
+    <div class="mt-credit">Quelle: Aviation Weather Center (NOAA)</div></div>`;
+  document.getElementById('metar-panel').innerHTML = html;
 }
 
 // ══════════════════════════════════════════════
@@ -1514,6 +1926,7 @@ function updateSourceBtn() {
   const btn = document.getElementById('source-btn');
   const lbl = document.getElementById('source-label');
   if (!btn) return;
+  updateWxButton();
   const modes = availableModes();
   // Nur ein Modus verfügbar -> Button deaktivieren
   if (modes.length <= 1) {
@@ -1530,19 +1943,19 @@ function updateSourceBtn() {
     btn.style.background = 'var(--panel-2)';
     btn.style.borderColor = 'var(--good)';
     btn.style.color = 'var(--good)';
-    if (lbl) lbl.textContent = 'Daten: Mein Feeder · Routen: adsbdb.com';
+    if (lbl) lbl.textContent = 'Daten: Mein Feeder · Routen: adsbdb.com' + (wxOn ? ' · Radar: DWD' : '') + (metarOn ? ' · METAR: NOAA' : '');
   } else if (dataSource === 'fixpoint') {
     btn.querySelector('span').textContent = 'Fixpunkt';
     btn.style.background = 'var(--panel-2)';
     btn.style.borderColor = 'var(--warn)';
     btn.style.color = 'var(--warn)';
-    if (lbl) lbl.textContent = 'Daten: adsb.fi/adsb.lol (Fixpunkt) · Routen: adsbdb.com';
+    if (lbl) lbl.textContent = 'Daten: adsb.fi/adsb.lol (Fixpunkt) · Routen: adsbdb.com' + (metarOn ? ' · METAR: NOAA' : '');
   } else {
     btn.querySelector('span').textContent = 'Live-Feed';
     btn.style.background = '';
     btn.style.borderColor = '';
     btn.style.color = '';
-    if (lbl) lbl.textContent = 'Daten: adsb.fi/adsb.lol · Routen: adsbdb.com';
+    if (lbl) lbl.textContent = 'Daten: adsb.fi/adsb.lol · Routen: adsbdb.com' + (metarOn ? ' · METAR: NOAA' : '');
   }
 }
 
@@ -1718,6 +2131,7 @@ function renderList() {
 // DETAIL PANEL (FR24-style)
 // ══════════════════════════════════════════════
 async function selectAircraft(hex) {
+  closeMetarPanel(true);
   selectedHex = hex===selectedHex ? null : hex;
   renderList(); drawRadar();
 
@@ -1953,6 +2367,9 @@ requestAnimationFrame(() => requestAnimationFrame(resizeCanvas));
 drawRadar();
 getLocation().then(() => { if (myLat) { fetchData(); updateServer(); } });
 setInterval(() => { if (myLat) fetchData(); }, REFRESH_MS);
+// METAR bei Bedarf nachladen (Bewegung, Radius, alle 10 Minuten) und Regenradar alle 5 Minuten auffrischen
+setInterval(maybeFetchMetar, 2000);
+setInterval(refreshWx, 60 * 1000);
 // Feeder-Status beim Start und alle 30s prüfen
 checkFeederStatus();
 setInterval(checkFeederStatus, 30000);

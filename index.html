@@ -1356,7 +1356,7 @@ function applyMapLayers() {
       // DWD-Niederschlagsradar (Radarkomposit, alle 5 Minuten neu). Quelle: Deutscher Wetterdienst
       wxLayer = L.tileLayer.wms('https://maps.dwd.de/geoserver/dwd/wms', {
         layers:'dwd:Niederschlagsradar', format:'image/png', transparent:true,
-        version:'1.3.0', pane:'wx', opacity:.75, maxZoom:16, _t: wxStamp()
+        version:'1.3.0', pane:'wx', opacity:.75, maxZoom:16, time: wxTime()
       });
     }
     if (!radarMap.hasLayer(wxLayer)) wxLayer.addTo(radarMap);
@@ -1364,13 +1364,20 @@ function applyMapLayers() {
     radarMap.removeLayer(wxLayer);
   }
 }
-// Zeitstempel auf 5 Minuten gerundet: Browser-Cache greift innerhalb eines Radarbilds,
-// beim naechsten Bild werden die Kacheln neu geladen
-function wxStamp() { return Math.floor(Date.now() / 300000); }
+// Zeitpunkt des Radarbilds ausdruecklich anfordern. Ohne TIME liefert der DWD-Dienst
+// nicht zuverlaessig das aktuelle Bild (die Ebene enthaelt auch Vergangenheit und
+// Vorhersage bis +2 h). Das neueste Messbild liegt etwa 5 bis 10 Minuten zurueck,
+// daher: jetzt minus 8 Minuten, abgerundet auf das 5-Minuten-Raster.
+const WX_STEP = 5 * 60000;
+function wxTimeMs() { return Math.floor((Date.now() - 8 * 60000) / WX_STEP) * WX_STEP; }
+function wxTime()   { return new Date(wxTimeMs()).toISOString().replace(/\.\d+Z$/, '.000Z'); }
+function wxLabel()  {
+  return 'Radar: DWD ' + new Date(wxTimeMs()).toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+}
 function refreshWx() {
   if (wxLayer && radarMap && radarMap.hasLayer(wxLayer)) {
-    const t = wxStamp();
-    if (wxLayer.wmsParams._t !== t) wxLayer.setParams({ _t: t });
+    const t = wxTime();
+    if (wxLayer.wmsParams.time !== t) { wxLayer.setParams({ time: t }); updateSourceBtn(); }
   }
 }
 
@@ -1943,7 +1950,7 @@ function updateSourceBtn() {
     btn.style.background = 'var(--panel-2)';
     btn.style.borderColor = 'var(--good)';
     btn.style.color = 'var(--good)';
-    if (lbl) lbl.textContent = 'Daten: Mein Feeder · Routen: adsbdb.com' + (wxOn ? ' · Radar: DWD' : '') + (metarOn ? ' · METAR: NOAA' : '');
+    if (lbl) lbl.textContent = 'Daten: Mein Feeder · Routen: adsbdb.com' + (wxOn ? ' · ' + wxLabel() : '') + (metarOn ? ' · METAR: NOAA' : '');
   } else if (dataSource === 'fixpoint') {
     btn.querySelector('span').textContent = 'Fixpunkt';
     btn.style.background = 'var(--panel-2)';

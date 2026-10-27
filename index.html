@@ -508,7 +508,8 @@ body {
   #header { flex-wrap: wrap; padding: 6px 10px; gap: 6px; }
   #header h1 { font-size: 0.82rem; letter-spacing: 2px; }
   #status-bar { font-size: 0.6rem; gap: 10px; flex: 1 1 100%; order: 3; }
-  #controls { gap: 6px; flex-wrap: wrap; }
+  #controls { gap: 6px; flex-wrap: wrap; flex-shrink: 1; min-width: 0; }
+  #cov-btn span { display: none; }   /* auf dem Handy nur das Symbol, sonst wird die Zeile zu breit */
   #controls label { font-size: 0.64rem; white-space: nowrap; }
   #controls input[type=number] { width: 44px; padding: 3px 4px; font-size: 0.72rem; }
   #refresh-btn { padding: 4px 8px; }

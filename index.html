@@ -577,7 +577,7 @@ body {
       <button id="source-btn" onclick="toggleSource()" title="Datenquelle umschalten" style="opacity:0.4;cursor:not-allowed;" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18Z"/></svg><span>Live-Feed</span></button>
       <a id="cov-btn" class="btn" href="coverage.html" title="Empfangsabdeckung in 3D" style="display:none;text-decoration:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="18" rx="9" ry="3"/><path d="M5 9a7 3 0 0 0 14 0"/><path d="M3 18 5 9M21 18 19 9"/><path d="M12 18V5"/></svg><span>Abdeckung</span></a>
       <button id="reset-btn" onclick="resetRadius()" title="Radius zurücksetzen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v4h4"/></svg></button>
-      <button id="refresh-btn" onclick="fetchData()"><span class="refresh-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v4h-4"/></svg>Refresh</span><span class="refresh-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v4h-4"/></svg></span></button>
+      <button id="refresh-btn" onclick="fetchData(true)"><span class="refresh-label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v4h-4"/></svg>Refresh</span><span class="refresh-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v4h-4"/></svg></span></button>
     </div>
   </div>
 </div>
@@ -2277,12 +2277,14 @@ function resetRadius() {
   fetchData();
 }
 
-async function fetchData() {
+async function fetchData(manual = false) {
   if (isFetching) return;          // Parallele Aufrufe verhindern
   if (!myLat) { await getLocation(); if (!myLat) return; }
   isFetching = true;
+  // Knopf nur beim Klick sperren: die automatische Aktualisierung alle paar Sekunden
+  // würde ihn sonst bei jedem Abruf kurz abdunkeln (Blinken)
   const btn = document.getElementById('refresh-btn');
-  btn.disabled = true;
+  if (manual) btn.disabled = true;
   // Spinner nur beim ersten Laden zeigen, nicht bei jedem Auto-Refresh
   const firstLoad = Object.keys(aircraft).length === 0;
   if (firstLoad) document.getElementById('spinner').classList.add('visible');
@@ -2370,7 +2372,7 @@ async function fetchData() {
     document.getElementById('last-update').textContent = 'Fehler: ' + msg;
   } finally {
     isFetching = false;
-    btn.disabled = false;
+    if (manual) btn.disabled = false;
     document.getElementById('spinner').classList.remove('visible');
   }
 }

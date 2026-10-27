@@ -573,7 +573,6 @@ body {
   </div>
   <div id="controls">
     <label>Radius: <input type="number" id="radius-input" value="40" min="10" max="250"> nm</label>
-    <label>Alert: <input type="number" id="alert-input" value="20" min="1" max="100"> nm</label>
     <div style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;">
       <button id="source-btn" onclick="toggleSource()" title="Datenquelle umschalten" style="opacity:0.4;cursor:not-allowed;" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18Z"/></svg><span>Live-Feed</span></button>
       <a id="cov-btn" class="btn" href="coverage.html" title="Empfangsabdeckung in 3D" style="display:none;text-decoration:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="18" rx="9" ry="3"/><path d="M5 9a7 3 0 0 0 14 0"/><path d="M3 18 5 9M21 18 19 9"/><path d="M12 18V5"/></svg><span>Abdeckung</span></a>
@@ -830,17 +829,13 @@ function toggleFavPanel() {
 async function init() {
   // Gespeicherten Radius laden
   const savedRadius = localStorage.getItem('userRadius');
-  const savedAlert  = localStorage.getItem('userAlert');
   if (savedRadius) document.getElementById('radius-input').value = savedRadius;
-  if (savedAlert)  document.getElementById('alert-input').value  = savedAlert;
+  localStorage.removeItem('userAlert');   // früher einstellbar, jetzt fest (ALERT_NM)
 
   // Änderungen speichern
   document.getElementById('radius-input').addEventListener('change', () => {
     localStorage.setItem('userRadius', document.getElementById('radius-input').value);
     mapApplied = null; drawRadar(); maybeFetchMetar();
-  });
-  document.getElementById('alert-input').addEventListener('change', () => {
-    localStorage.setItem('userAlert', document.getElementById('alert-input').value);
   });
 
   // Airlines vom Server laden (single source of truth)
@@ -880,6 +875,8 @@ async function init() {
 // TELEGRAM NOTIFICATIONS
 // ══════════════════════════════════════════════
 const PUSH_SERVER = 'https://api.adsb-radar.de';
+// Alert-Zone fest bei 20 nm (Radar-Ring, Listenmarkierung, Telegram-Alerts über Railway)
+const ALERT_NM = 20;
 // Feeder-Zugriff läuft serverseitig über deinen Token (/feeder). Feed und Koordinaten
 // stehen NICHT mehr im öffentlichen Quelltext, sie werden nur für den Owner geladen.
 let FEEDER_LAT = null;
@@ -1024,7 +1021,7 @@ async function updateServer(force = false) {
   if (!favsLoaded) return;
   if (!force && Date.now() - lastUpdate < 55000) return; // Max einmal pro Minute
   lastUpdate = Date.now();
-  const alertNm  = parseInt(document.getElementById('alert-input').value)  || 20;
+  const alertNm  = ALERT_NM;
   const radiusNm = parseInt(document.getElementById('radius-input').value) || 40;
   try {
     await fetch(`${PUSH_SERVER}/update`, {
@@ -1213,7 +1210,7 @@ function drawRadar() {
   ctx.textAlign='center';
 
   // alert ring
-  const alertNm = parseInt(document.getElementById('alert-input').value) || 20;
+  const alertNm = ALERT_NM;
   const ar = R*(alertNm/radiusNm);
   if (ar<=R) {
     ctx.beginPath(); ctx.arc(cx,cy,ar,0,Math.PI*2);
@@ -1462,7 +1459,7 @@ function draw3d() {
   const cLat = centerLat(), cLon = centerLon();
   if (cLat == null || cLon == null) { v3Render(); return; }
   const radiusNm = parseInt(document.getElementById('radius-input').value) || 40;
-  const alertNm  = parseInt(document.getElementById('alert-input').value) || 20;
+  const alertNm  = ALERT_NM;
   const Rkm = radiusNm * V3_NM_KM;
   if (Rkm !== v3.Rkm || !v3.fitted) {
     v3.Rkm = Rkm;
@@ -2276,9 +2273,7 @@ function toggleSource() {
 
 function resetRadius() {
   document.getElementById('radius-input').value = 40;
-  document.getElementById('alert-input').value  = 20;
   localStorage.setItem('userRadius', '40');
-  localStorage.setItem('userAlert',  '20');
   fetchData();
 }
 
@@ -2385,7 +2380,7 @@ async function fetchData() {
 // ══════════════════════════════════════════════
 function renderList() {
   const radiusNm = parseInt(document.getElementById('radius-input').value)||40;
-  const alertNm  = parseInt(document.getElementById('alert-input').value)||20;
+  const alertNm  = ALERT_NM;
   const cLat = centerLat();
   const cLon = centerLon();
   const acArr = Object.values(aircraft)
@@ -2458,7 +2453,7 @@ async function renderDetail(hex, isNew) {
 
   // Badges
   const badges = document.getElementById('dp-badges');
-  const alertNm = parseInt(document.getElementById('alert-input').value)||20;
+  const alertNm = ALERT_NM;
   badges.innerHTML = `
     ${ac.t?`<span class="badge badge-type">${ac.t}</span>`:''}
     ${ac._dst<=alertNm?'<span class="badge badge-alert">⚠ ALERT ZONE</span>':''}

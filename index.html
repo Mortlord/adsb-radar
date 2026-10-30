@@ -2065,17 +2065,41 @@ function bearingTo(lat1,lon1,lat2,lon2) {
 // FETCH ROUTE (adsbdb.com – kostenlos, CORS OK)
 // Normalisiertes Format: { orig:{iata,icao,city}, dest:{iata,icao,city} }
 // ══════════════════════════════════════════════
+// Aktuelle Position des Flugzeugs zu einem Callsign (fuer die Plausibilitaetspruefung im Server)
+function posForCallsign(cs) {
+  for (const ac of Object.values(aircraft)) {
+    if ((ac.flight || '').trim() === cs && Number.isFinite(ac.lat) && Number.isFinite(ac.lon)) {
+      const alt = typeof ac.alt_baro === 'number' ? ac.alt_baro : (ac.alt_baro === 'ground' ? 0 : null);
+      const vr  = typeof ac.baro_rate === 'number' ? ac.baro_rate : (typeof ac.geom_rate === 'number' ? ac.geom_rate : null);
+      return { lat: ac.lat, lon: ac.lon, alt, trk: typeof ac.track === 'number' ? ac.track : null, vr };
+    }
+  }
+  return null;
+}
+
 async function fetchRoute(callsign) {
   if (!callsign) return null;
   const cs = callsign.trim();
   if (routeCache[cs] !== undefined) return routeCache[cs];
   routeCache[cs] = null; // Platzhalter gegen Doppel-Anfragen
   try {
-    const r = await fetch(`https://api.adsb-radar.de/route?callsign=${encodeURIComponent(cs)}`,
-                          {signal: AbortSignal.timeout(8000)});
+    // Mit Flugzeugposition prueft der Server, ob die Route passt, und holt bei Bedarf
+    // eine Zweitmeinung (AeroDataBox). Das kann etwas dauern, daher 15 s Timeout.
+    const pos = posForCallsign(cs);
+    let q = '';
+    if (pos) {
+      q = `&lat=${pos.lat.toFixed(3)}&lon=${pos.lon.toFixed(3)}`;
+      if (pos.alt !== null) q += `&alt=${Math.round(pos.alt)}`;
+      if (pos.trk !== null) q += `&trk=${Math.round(pos.trk)}`;
+      if (pos.vr  !== null) q += `&vr=${Math.round(pos.vr)}`;
+    }
+    const r = await fetch(`https://api.adsb-radar.de/route?callsign=${encodeURIComponent(cs)}${q}`,
+                          {signal: AbortSignal.timeout(15000)});
     if (!r.ok) return null;
     const d = await r.json();
     if (!d?.route?.orig?.iata || !d?.route?.dest?.iata) return null;
+    // Unplausible Route (passt nicht zur Position): lieber keine Route als eine falsche
+    if (d.plausible === false) return null;
     const route = {
       orig: { iata: d.route.orig.iata, icao: d.route.orig.icao || '', city: AIRPORTS[d.route.orig.iata] || d.route.orig.city || '' },
       dest: { iata: d.route.dest.iata, icao: d.route.dest.icao || '', city: AIRPORTS[d.route.dest.iata] || d.route.dest.city || '' },

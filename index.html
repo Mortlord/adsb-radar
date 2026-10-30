@@ -560,6 +560,70 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+/* ── Flughafenansicht LFSB ───────────────────────────────────────────── */
+#ap-btn {
+  position: absolute; right: 14px; z-index: 2;
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(21,26,33,.85); border: 1px solid var(--line); color: var(--ink-mid);
+  border-radius: var(--r); cursor: pointer;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  transition: background .12s, border-color .12s, color .12s;
+}
+#ap-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; }
+#ap-btn:hover { border-color: var(--accent-dim); color: var(--ink); }
+#ap-view {
+  position: fixed; inset: 0; z-index: 3000; display: none; flex-direction: column;
+  background: var(--bg);
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+#ap-view.open { display: flex; }
+#ap-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--line);
+}
+#ap-head .ap-title { font-weight: 600; font-size: 1rem; color: var(--ink); letter-spacing: .3px; }
+#ap-head .ap-title span { font-family: var(--mono); font-size: .78rem; color: var(--ink-mid); margin-left: 6px; }
+#ap-head .ap-stat { font-family: var(--mono); font-size: .7rem; color: var(--ink-mid); }
+#ap-head .ap-stat b { color: var(--ink); font-weight: 500; }
+#ap-head .ap-sp { flex: 1; }
+#ap-head button {
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--ink-mid);
+  border-radius: var(--r); padding: 6px 10px; font-family: var(--sans); font-size: .8rem; cursor: pointer;
+}
+#ap-head button:hover { border-color: var(--accent-dim); color: var(--ink); }
+#ap-head button.ap-close { font-size: 1.05rem; line-height: 1; padding: 5px 10px; }
+#ap-map { flex: 1; background: #0c0f14; }
+#ap-map .leaflet-control-attribution {
+  background: rgba(18,22,28,.8); color: var(--ink-dim); font-family: var(--sans); font-size: 10px;
+}
+.ap-ac { background: none; border: none; }
+.ap-ac-wrap { position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer; }
+.ap-ac-svg { position: absolute; left: 0; top: 0; overflow: visible; }
+.ap-ac-lbl {
+  position: absolute; white-space: nowrap; font-family: var(--mono); font-size: 10.5px; line-height: 1.25;
+  color: var(--ink); text-shadow: 0 0 3px #0a0d12, 0 0 3px #0a0d12, 0 0 2px #0a0d12;
+  pointer-events: none;
+}
+.ap-ac-lbl small { display: block; color: var(--ink-mid); font-size: 9.5px; }
+.ap-txt { background: none; border: none; }
+.ap-txt div {
+  transform: translate(-50%, -50%); white-space: nowrap; font-family: var(--mono);
+  color: var(--ink-dim); text-shadow: 0 0 3px #0a0d12, 0 0 3px #0a0d12; pointer-events: none;
+}
+.ap-rwy div { font-size: 13px; color: #9aa6b3; font-weight: 500; }
+.ap-gate div { font-size: 9.5px; }
+.ap-bldg div { font-family: var(--sans); font-size: 11px; color: var(--ink-mid); }
+#ap-map.ap-z-lo .ap-gate, #ap-map.ap-z-lo .ap-bldg { display: none; }
+#ap-map.ap-z-far .ap-rwy { display: none; }
+#ap-map .leaflet-popup-content-wrapper, #ap-map .leaflet-popup-tip {
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0,0,0,.5);
+}
+#ap-map .leaflet-popup-content { margin: 10px 12px; font-family: var(--sans); font-size: .82rem; line-height: 1.45; }
+#ap-map .leaflet-popup-content .cs { font-family: var(--mono); font-size: 1rem; color: var(--ink); }
+#ap-map .leaflet-popup-content .mut { color: var(--ink-mid); }
+#ap-map .leaflet-popup-content .rt { font-family: var(--mono); color: var(--accent); margin-top: 4px; }
+#ap-map a.leaflet-popup-close-button { color: var(--ink-mid); }
 </style>
 </head>
 <body>
@@ -583,7 +647,7 @@ body {
 </div>
 
 <div id="main">
-  <div id="radar-panel"><div id="radar-map"></div><canvas id="radar-canvas"></canvas><canvas id="radar-3d"></canvas><div id="radar-3d-labels"></div><button id="view3d-btn" onclick="toggleView3d()" title="3D-Ansicht ein/aus" aria-label="3D-Ansicht ein/aus">3D</button><button id="map-btn" onclick="toggleMapMode()" title="Karte als Hintergrund ein/aus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg></button><button id="metar-btn" onclick="toggleMetar()" title="Flughäfen mit Wetter (METAR) ein/aus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9a3 3 0 1 0-3-3"/><path d="M3 12h14a3 3 0 1 1-3 3"/><path d="M3 16h6"/></svg></button><button id="wx-btn" onclick="toggleWx()" title="Regenradar (DWD) ein/aus" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15a4.5 4.5 0 1 1 1.4-8.8A5.5 5.5 0 0 1 19 8.5a3.5 3.5 0 0 1-1 6.5H7Z"/><path d="M8 18l-1 2.5M12 18l-1 2.5M16 18l-1 2.5"/></svg></button><button id="compass-btn" onclick="toggleCompass()" title="Radar an Blickrichtung ausrichten" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/></svg></button></div>
+  <div id="radar-panel"><div id="radar-map"></div><canvas id="radar-canvas"></canvas><canvas id="radar-3d"></canvas><div id="radar-3d-labels"></div><button id="view3d-btn" onclick="toggleView3d()" title="3D-Ansicht ein/aus" aria-label="3D-Ansicht ein/aus">3D</button><button id="map-btn" onclick="toggleMapMode()" title="Karte als Hintergrund ein/aus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg></button><button id="metar-btn" onclick="toggleMetar()" title="Flughäfen mit Wetter (METAR) ein/aus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9a3 3 0 1 0-3-3"/><path d="M3 12h14a3 3 0 1 1-3 3"/><path d="M3 16h6"/></svg></button><button id="wx-btn" onclick="toggleWx()" title="Regenradar (DWD) ein/aus" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 15a4.5 4.5 0 1 1 1.4-8.8A5.5 5.5 0 0 1 19 8.5a3.5 3.5 0 0 1-1 6.5H7Z"/><path d="M8 18l-1 2.5M12 18l-1 2.5M16 18l-1 2.5"/></svg></button><button id="ap-btn" onclick="openAirportView()" title="Flughafen Basel-Mulhouse" aria-label="Flughafen Basel-Mulhouse"><svg viewBox="0 0 24 24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M6 21V10h12v11"/><path d="M9 10V6h6v4"/><path d="M12 3v3"/><path d="M9 14h2M13 14h2M9 17h2M13 17h2"/></svg></button><button id="compass-btn" onclick="toggleCompass()" title="Radar an Blickrichtung ausrichten" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z"/></svg></button></div>
   <div id="list-panel">
     <div id="fav-panel">
       <button id="fav-toggle" onclick="toggleFavPanel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.6l1-5.8L3.5 9.7l5.9-.9z"/></svg><span>Favoriten</span> <span id="fav-count"></span></button>
@@ -753,6 +817,9 @@ let knownHexes = new Set();
 let selectedHex = null;
 let radarHits = [];   // {hex,x,y} je gezeichnetem Flugzeug, fuer Tap/Klick-Treffer
 let routeCache = {};
+// Flughafenansicht (Code weiter unten); hier deklariert, weil Radar und Routen darauf zugreifen
+var apOpen = false;
+var apAc = {};                  // hex -> { ac, ts, marker, trail:[[lat,lon,ts]], line }
 let operatorCache = {};
 let isFetching = false;
 let myTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone; // Fallback: Gerätezeitzone
@@ -1739,7 +1806,7 @@ function updateWxButton() {
 // Sichtbare Knoepfe am Radar untereinander stapeln
 function layoutRadarButtons() {
   let top = 14;
-  for (const id of ['map-btn', 'view3d-btn', 'compass-btn', 'metar-btn', 'wx-btn']) {
+  for (const id of ['map-btn', 'view3d-btn', 'compass-btn', 'metar-btn', 'wx-btn', 'ap-btn']) {
     const b = document.getElementById(id);
     if (!b || b.style.display === 'none') continue;
     b.style.top = top + 'px';
@@ -2067,7 +2134,8 @@ function bearingTo(lat1,lon1,lat2,lon2) {
 // ══════════════════════════════════════════════
 // Aktuelle Position des Flugzeugs zu einem Callsign (fuer die Plausibilitaetspruefung im Server)
 function posForCallsign(cs) {
-  for (const ac of Object.values(aircraft)) {
+  const pool = Object.values(aircraft).concat(Object.values(apAc).map(e => e.ac));
+  for (const ac of pool) {
     if ((ac.flight || '').trim() === cs && Number.isFinite(ac.lat) && Number.isFinite(ac.lon)) {
       const alt = typeof ac.alt_baro === 'number' ? ac.alt_baro : (ac.alt_baro === 'ground' ? 0 : null);
       const vr  = typeof ac.baro_rate === 'number' ? ac.baro_rate : (typeof ac.geom_rate === 'number' ? ac.geom_rate : null);
@@ -2302,7 +2370,8 @@ function resetRadius() {
 }
 
 async function fetchData(manual = false) {
-  if (isFetching) return;          // Parallele Aufrufe verhindern
+  if (isFetching) return;
+  if (apOpen) return;   // Flughafenansicht offen: Hauptradar pausiert          // Parallele Aufrufe verhindern
   if (!myLat) { await getLocation(); if (!myLat) return; }
   isFetching = true;
   // Knopf nur beim Klick sperren: die automatische Aktualisierung alle paar Sekunden
@@ -2686,6 +2755,286 @@ applyView3dUi();
 requestAnimationFrame(() => requestAnimationFrame(resizeCanvas));
 drawRadar();
 getLocation().then(() => { if (myLat) { fetchData(); updateServer(); } });
+// ══ Flughafenansicht Basel-Mulhouse (LFSB) ══════════════════════════════════
+// Eigene Vollbild-Karte: Vorfeld, Rollwege, Pisten und Gebäude aus OpenStreetMap
+// (statische Datei airport-lfsb.json im Repo, © OpenStreetMap-Mitwirkende, ODbL).
+// Flugzeuge über das eigene Backend (/aircraft, adsb.fi/adsb.lol), zentriert auf LFSB.
+// Hineingezoomt: kleiner Radius, Flugzeuge in Originalgröße; herausgezoomt: An- und Abflüge.
+function apEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+const AP = { lat: 47.5996, lon: 7.5290, dataUrl: 'airport-lfsb.json' };
+const AP_POLL_MS     = 2000;
+const AP_STALE_S     = 60;      // Position älter: ausblenden
+const AP_TRAIL_MS    = 3 * 60 * 1000;
+const AP_TAXI_WIDTH  = 23;      // m, falls OSM keine Breite nennt
+// Spannweite nach ADS-B-Emitterkategorie (m), für die maßstäbliche Darstellung am Boden
+const AP_SPAN = { A1: 12, A2: 20, A3: 36, A4: 40, A5: 62, A7: 12, B1: 15, B4: 10 };
+const AP_PLANE = 'M0,-48C4,-48 5,-40 5,-30L5,-10L46,8L46,15L5,6L4,30L16,40L16,46L0,42L-16,46L-16,40L-4,30L-5,6L-46,15L-46,8L-5,-10L-5,-30C-5,-40 -4,-48 0,-48Z';
+
+let apMap = null, apTimer = null, apAnim = null, apFetching = false;
+let apScaled = [];              // [{layer, widthM, minPx}] Linien mit Breite in Metern
+
+function apMpp() {
+  const lat = apMap.getCenter().lat;
+  return 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, apMap.getZoom());
+}
+
+function openAirportView() {
+  document.getElementById('ap-view').classList.add('open');
+  apOpen = true;
+  if (!apMap) apInitMap(); else apMap.invalidateSize();
+  apPoll();
+  clearInterval(apTimer); apTimer = setInterval(apPoll, AP_POLL_MS);
+  clearInterval(apAnim);  apAnim  = setInterval(apAnimate, 250);
+}
+
+function closeAirportView() {
+  document.getElementById('ap-view').classList.remove('open');
+  apOpen = false;
+  clearInterval(apTimer); clearInterval(apAnim);
+  if (typeof fetchData === 'function') fetchData();
+}
+
+document.addEventListener('keydown', e => { if (apOpen && e.key === 'Escape') closeAirportView(); });
+
+function apZoomTo(which) {
+  if (!apMap) return;
+  if (which === 'apron') apMap.flyTo([47.5985, 7.5265], 16, { duration: 0.8 });
+  else apMap.flyTo([AP.lat, AP.lon], 11, { duration: 0.8 });
+}
+
+function apInitMap() {
+  apMap = L.map('ap-map', { zoomControl: false, zoomSnap: 0.25, minZoom: 8, maxZoom: 19 })
+           .setView([47.5985, 7.5265], 15.5);
+  apMap.attributionControl.setPrefix(false);
+  apMap.attributionControl.addAttribution('© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende · Kacheln © Esri');
+  apMap.createPane('apScrim').style.zIndex = 250;
+  apMap.createPane('apGround').style.zIndex = 400;
+  apMap.createPane('apTrail').style.zIndex = 450;
+  apMap.getPane('apTrail').style.pointerEvents = 'none';
+  L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+              { maxZoom: 19, maxNativeZoom: 16, className: 'basemap-base' }).addTo(apMap);
+  L.rectangle([[-85, -180], [85, 180]], { pane: 'apScrim', interactive: false, stroke: false,
+              fillColor: '#0a0d12', fillOpacity: .62 }).addTo(apMap);
+  apMap.on('zoomend', apOnZoom);
+  apLoadGeo();
+  apOnZoom();
+}
+
+async function apLoadGeo() {
+  let fc;
+  try {
+    const r = await fetch(AP.dataUrl, { cache: 'force-cache' });
+    fc = await r.json();
+  } catch (e) { showToast('Flughafendaten nicht geladen'); return; }
+  const g = 'apGround';
+  const R = L.canvas({ pane: g, padding: 0.3 });
+  const feats = fc.features || [];
+  const by = pred => feats.filter(pred);
+  const aw = f => f.properties.aeroway || '';
+
+  // 1. Vorfeld
+  L.geoJSON({ type: 'FeatureCollection', features: by(f => aw(f) === 'apron') }, {
+    renderer: R, interactive: false,
+    style: { stroke: false, fillColor: '#1d242d', fillOpacity: 1 }
+  }).addTo(apMap);
+  // 2. Rollwege (Fläche maßstäblich, darauf gelbliche Mittellinie)
+  const taxi = by(f => (aw(f) === 'taxiway' || aw(f) === 'taxilane') && f.geometry.type === 'LineString');
+  for (const f of taxi) {
+    const ll = f.geometry.coordinates.map(c => [c[1], c[0]]);
+    const w = parseFloat(f.properties.width) || AP_TAXI_WIDTH;
+    const body = L.polyline(ll, { renderer: R, interactive: false, color: '#262e38', lineCap: 'round', lineJoin: 'round' }).addTo(apMap);
+    apScaled.push({ layer: body, widthM: w, minPx: 1.5 });
+  }
+  for (const f of taxi) {
+    L.polyline(f.geometry.coordinates.map(c => [c[1], c[0]]),
+               { renderer: R, interactive: false, color: '#7d6a35', weight: 1, opacity: .8 }).addTo(apMap);
+  }
+  // 3. Pisten mit Mittellinie und Schwellenbeschriftung
+  for (const f of by(f => aw(f) === 'runway' && f.geometry.type === 'LineString')) {
+    const ll = f.geometry.coordinates.map(c => [c[1], c[0]]);
+    const w = parseFloat(f.properties.width) || 45;
+    const body = L.polyline(ll, { renderer: R, interactive: false, color: '#38414c', lineCap: 'butt' }).addTo(apMap);
+    apScaled.push({ layer: body, widthM: w, minPx: 3 });
+    L.polyline(ll, { renderer: R, interactive: false, color: '#9aa6b3', weight: 1, dashArray: '10 8', opacity: .7 }).addTo(apMap);
+    if (f.properties.ref && ll.length >= 2) {
+      const a = ll[0], b = ll[ll.length - 1];
+      const brg = bearingTo(a[0], a[1], b[0], b[1]);
+      const n = d => String(((Math.round(d / 10) + 35) % 36) + 1).padStart(2, '0');
+      // Hinter der Schwelle (ca. 120 m auf der Piste) beschriften
+      const at = (p, q, m) => { const d = haversine(p[0], p[1], q[0], q[1]) * 1000; const t = Math.min(1, m / d);
+                                return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]; };
+      apText(at(a, b, 160), n(brg), 'ap-rwy');
+      apText(at(b, a, 160), n((brg + 180) % 360), 'ap-rwy');
+    }
+  }
+  // 4. Abstellpositionen
+  L.geoJSON({ type: 'FeatureCollection', features: by(f => aw(f) === 'parking_position') }, {
+    renderer: R, interactive: false,
+    style: { color: '#465160', weight: 1, fill: false }
+  }).addTo(apMap);
+  // 5. Gebäude
+  L.geoJSON({ type: 'FeatureCollection', features: by(f => f.properties.building || aw(f) === 'terminal' || aw(f) === 'hangar') }, {
+    renderer: R, interactive: false,
+    style: f => {
+      const t = aw(f);
+      if (t === 'terminal') return { color: '#2f6d96', weight: 1, fillColor: '#24313f', fillOpacity: 1 };
+      if (t === 'hangar')   return { color: '#3a4452', weight: 1, fillColor: '#20262e', fillOpacity: 1 };
+      return { color: '#353e4a', weight: 1, fillColor: '#222831', fillOpacity: 1 };
+    }
+  }).addTo(apMap);
+  // 6. Beschriftungen: Gates, benannte Gebäude
+  for (const f of by(f => aw(f) === 'gate' && f.properties.ref && f.geometry.type === 'Point')) {
+    const c = f.geometry.coordinates; apText([c[1], c[0]], f.properties.ref, 'ap-gate');
+  }
+  for (const f of by(f => f.properties.name && f.geometry.type === 'Polygon')) {
+    const ring = f.geometry.coordinates[0];
+    const lat = ring.reduce((s, c) => s + c[1], 0) / ring.length, lon = ring.reduce((s, c) => s + c[0], 0) / ring.length;
+    apText([lat, lon], f.properties.name, 'ap-bldg');
+  }
+  apOnZoom();
+}
+
+function apText(ll, text, cls) {
+  L.marker(ll, { interactive: false, keyboard: false,
+    icon: L.divIcon({ className: 'ap-txt ' + cls, html: `<div>${apEsc(text)}</div>`, iconSize: [0, 0] }) }).addTo(apMap);
+}
+
+function apOnZoom() {
+  if (!apMap) return;
+  const z = apMap.getZoom(), mpp = apMpp();
+  for (const s of apScaled) s.layer.setStyle({ weight: Math.max(s.minPx, s.widthM / mpp) });
+  const el = document.getElementById('ap-map');
+  el.classList.toggle('ap-z-lo', z < 16);
+  el.classList.toggle('ap-z-far', z < 12.5);
+  for (const hex in apAc) apStyleMarker(apAc[hex]);
+  // Zoomwechsel kann den Abfrageradius ändern
+  if (apOpen) apPoll();
+}
+
+function apRadiusNm() { return apMap && apMap.getZoom() >= 13.5 ? 4 : 30; }
+
+function apOnGround(ac) {
+  if (ac.alt_baro === 'ground') return true;
+  return typeof ac.gs === 'number' && ac.gs < 35 && typeof ac.alt_baro === 'number' && ac.alt_baro < 1500;
+}
+
+async function apPoll() {
+  if (!apOpen || apFetching) return;
+  apFetching = true;
+  try {
+    const r = await fetch(`${PUSH_SERVER}/aircraft?lat=${AP.lat}&lon=${AP.lon}&radius=${apRadiusNm()}`,
+                          { signal: AbortSignal.timeout(10000) });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    const list = data.ac || data.aircraft || [];
+    const now = Date.now();
+    const seen = new Set();
+    for (const ac of list) {
+      if (!ac.hex || !Number.isFinite(ac.lat) || !Number.isFinite(ac.lon)) continue;
+      if (typeof ac.seen_pos === 'number' && ac.seen_pos > AP_STALE_S) continue;
+      seen.add(ac.hex);
+      let e = apAc[ac.hex];
+      if (!e) {
+        e = apAc[ac.hex] = { ac, ts: now, trail: [], marker: null, line: null };
+        e.marker = L.marker([ac.lat, ac.lon], { keyboard: false,
+          icon: L.divIcon({ className: 'ap-ac', iconSize: [0, 0],
+            html: `<div class="ap-ac-wrap"><svg class="ap-ac-svg" viewBox="-50 -50 100 100"><path d="${AP_PLANE}"/></svg><span class="ap-ac-lbl"></span></div>` })
+        }).addTo(apMap);
+        e.marker.on('click', () => apShowPopup(ac.hex));
+      }
+      const ageMs = (typeof ac.seen_pos === 'number' ? ac.seen_pos : 0) * 1000;
+      e.ac = ac; e.ts = now - ageMs;
+      const last = e.trail[e.trail.length - 1];
+      if (!last || last[0] !== ac.lat || last[1] !== ac.lon) e.trail.push([ac.lat, ac.lon, e.ts]);
+      while (e.trail.length && now - e.trail[0][2] > AP_TRAIL_MS) e.trail.shift();
+      const ll = e.trail.map(p => [p[0], p[1]]);
+      const color = apOnGround(ac) ? '#d98a3d' : '#4a9fd4';
+      if (!e.line) e.line = L.polyline(ll, { pane: 'apTrail', interactive: false, weight: 1.5, opacity: .45, color }).addTo(apMap);
+      else { e.line.setLatLngs(ll); e.line.setStyle({ color }); }
+      apStyleMarker(e);
+    }
+    // Nicht mehr gemeldete Flugzeuge entfernen (kurze Gnadenfrist gegen Flackern)
+    for (const hex in apAc) {
+      const e = apAc[hex];
+      if (!seen.has(hex) && now - e.ts > 20000) {
+        apMap.removeLayer(e.marker); if (e.line) apMap.removeLayer(e.line);
+        delete apAc[hex];
+      }
+    }
+    apUpdateStat(now);
+  } catch (e) {
+    document.getElementById('ap-stat').textContent = 'Keine Daten (' + e.message + ')';
+  } finally { apFetching = false; }
+}
+
+function apUpdateStat(now) {
+  let g = 0, a = 0;
+  for (const hex in apAc) apOnGround(apAc[hex].ac) ? g++ : a++;
+  const t = new Date(now).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  document.getElementById('ap-stat').innerHTML = `Boden <b>${g}</b> · Luft <b>${a}</b> · ${t}`;
+}
+
+function apStyleMarker(e) {
+  const el = e.marker.getElement(); if (!el) return;
+  const ac = e.ac, ground = apOnGround(ac);
+  const span = AP_SPAN[(ac.category || '').toUpperCase()] || 34;
+  const px = Math.round(Math.max(ground ? 14 : 18, Math.min(120, span / apMpp())));
+  const hdg = typeof ac.true_heading === 'number' && ground ? ac.true_heading
+            : (typeof ac.track === 'number' ? ac.track : 0);
+  const wrap = el.firstChild, svg = wrap.firstChild, lbl = wrap.lastChild;
+  wrap.style.width = wrap.style.height = px + 'px';
+  wrap.style.transform = `translate(${-px / 2}px, ${-px / 2}px)`;
+  svg.setAttribute('width', px); svg.setAttribute('height', px);
+  svg.style.transform = `rotate(${hdg}deg)`;
+  const path = svg.firstChild;
+  path.setAttribute('fill', ground ? '#d98a3d' : altColor(ac.alt_baro));
+  path.setAttribute('stroke', '#0a0d12'); path.setAttribute('stroke-width', '3');
+  lbl.style.left = (px * 0.75) + 'px'; lbl.style.top = (px * 0.15) + 'px';
+  const cs = (ac.flight || '').trim() || ac.r || ac.hex.toUpperCase();
+  const sub = ground ? (typeof ac.gs === 'number' && ac.gs >= 3 ? `${Math.round(ac.gs)} kt` : '')
+                     : `${fmtAlt(ac.alt_baro)}${typeof ac.baro_rate === 'number' && Math.abs(ac.baro_rate) >= 300 ? (ac.baro_rate > 0 ? ' ↑' : ' ↓') : ''}`;
+  lbl.innerHTML = apEsc(cs) + (sub ? `<small>${apEsc(sub)}</small>` : '');
+}
+
+// Zwischen den Abfragen weiterrechnen (Geschwindigkeit und Kurs), höchstens 12 s
+function apAnimate() {
+  if (!apOpen) return;
+  const now = Date.now();
+  for (const hex in apAc) {
+    const e = apAc[hex], ac = e.ac;
+    if (typeof ac.gs !== 'number' || typeof ac.track !== 'number' || ac.gs < 3) continue;
+    const dt = Math.min(12, (now - e.ts) / 1000);
+    const dNm = ac.gs * dt / 3600;
+    const tr = ac.track * Math.PI / 180;
+    const lat = ac.lat + (dNm / 60) * Math.cos(tr);
+    const lon = ac.lon + (dNm / 60) * Math.sin(tr) / Math.cos(ac.lat * Math.PI / 180);
+    e.marker.setLatLng([lat, lon]);
+  }
+}
+
+async function apShowPopup(hex) {
+  const e = apAc[hex]; if (!e) return;
+  const ac = e.ac, cs = (ac.flight || '').trim();
+  const airline = cs ? getAirline(cs, ac.r) : '';
+  const type = ac.t ? getAircraftName(ac.t) : '';
+  const lines = [
+    `<div class="cs">${apEsc(cs || ac.r || hex.toUpperCase())}</div>`,
+    airline ? `<div>${apEsc(airline)}</div>` : '',
+    `<div class="mut">${apEsc([type, ac.r].filter(Boolean).join(' · '))}</div>`,
+    `<div class="mut">${apEsc(fmtAltFull(ac.alt_baro))}${typeof ac.gs === 'number' ? ' · ' + Math.round(ac.gs) + ' kt' : ''}</div>`,
+    `<div class="rt" id="ap-rt-${hex}">${cs ? 'Route …' : ''}</div>`
+  ].join('');
+  L.popup({ closeButton: true, autoPan: true, offset: [0, -6] })
+   .setLatLng(e.marker.getLatLng()).setContent(lines).openOn(apMap);
+  if (!cs) return;
+  const rt = await fetchRoute(cs);
+  const el = document.getElementById('ap-rt-' + hex);
+  if (!el) return;
+  el.textContent = rt && rt.orig && rt.dest ? `${rt.orig.iata} → ${rt.dest.iata}` : 'Route unbekannt';
+}
+
 setInterval(() => { if (myLat) fetchData(); }, REFRESH_MS);
 // METAR bei Bedarf nachladen (Bewegung, Radius, alle 10 Minuten) und Regenradar alle 5 Minuten auffrischen
 setInterval(maybeFetchMetar, 2000);
@@ -2701,5 +3050,17 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && myLat) { fetchData(); updateServer(); }
 });
 </script>
+<!-- Flughafenansicht Basel-Mulhouse (LFSB) -->
+<div id="ap-view" role="dialog" aria-label="Flughafen Basel-Mulhouse">
+  <div id="ap-head">
+    <div class="ap-title">Basel-Mulhouse<span>LFSB</span></div>
+    <div class="ap-stat" id="ap-stat">Lade …</div>
+    <div class="ap-sp"></div>
+    <button onclick="apZoomTo('apron')">Vorfeld</button>
+    <button onclick="apZoomTo('area')">Umgebung</button>
+    <button class="ap-close" onclick="closeAirportView()" aria-label="Schließen">×</button>
+  </div>
+  <div id="ap-map"></div>
+</div>
 </body>
 </html>

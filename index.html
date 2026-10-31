@@ -2930,6 +2930,11 @@ async function apPoll() {
     const data = await r.json();
     const list = data.ac || data.aircraft || [];
     const now = Date.now();
+    // Bezugszeit der Daten: Der Server cacht Antworten einige Sekunden; seen_pos bezieht sich
+    // auf data.now, nicht auf den Abrufzeitpunkt. Ohne das würde eine gecachte Position bei
+    // jeder Abfrage für frischer gehalten, die Hochrechnung neu gestartet, und das Flugzeug
+    // spränge zurück.
+    const dataNow = Number.isFinite(data.now) ? (data.now < 1e12 ? data.now * 1000 : data.now) : now;
     const seen = new Set();
     for (const ac of list) {
       if (!ac.hex || !Number.isFinite(ac.lat) || !Number.isFinite(ac.lon)) continue;
@@ -2944,8 +2949,10 @@ async function apPoll() {
         }).addTo(apMap);
         e.marker.on('click', () => apShowPopup(ac.hex));
       }
-      const ageMs = (typeof ac.seen_pos === 'number' ? ac.seen_pos : 0) * 1000;
-      e.ac = ac; e.ts = now - ageMs;
+      const posTs = dataNow - (typeof ac.seen_pos === 'number' ? ac.seen_pos : 0) * 1000;
+      // Nur neuere Positionen übernehmen (gecachte oder verspätete Antworten ignorieren)
+      if (e.posTs && posTs <= e.posTs) { e.seenAt = now; continue; }
+      e.ac = ac; e.ts = Math.min(posTs, now); e.posTs = posTs; e.seenAt = now;
       const last = e.trail[e.trail.length - 1];
       if (!last || last[0] !== ac.lat || last[1] !== ac.lon) e.trail.push([ac.lat, ac.lon, e.ts]);
       while (e.trail.length && now - e.trail[0][2] > AP_TRAIL_MS) e.trail.shift();
@@ -2958,7 +2965,7 @@ async function apPoll() {
     // Nicht mehr gemeldete Flugzeuge entfernen (kurze Gnadenfrist gegen Flackern)
     for (const hex in apAc) {
       const e = apAc[hex];
-      if (!seen.has(hex) && now - e.ts > 20000) {
+      if (!seen.has(hex) && now - (e.seenAt || e.ts) > 20000) {
         apMap.removeLayer(e.marker); if (e.line) apMap.removeLayer(e.line);
         delete apAc[hex];
       }
